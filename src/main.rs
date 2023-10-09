@@ -6,13 +6,9 @@ fn main() -> iced::Result {
 }
 
 struct RobotChallenge {
-    strategies: Vec<Strategy>,
+    tanks: Vec<Tank>,
     round: usize,
-}
-
-struct Strategy {
-    name: String,
-    author: String,
+    maxEnergy: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -35,6 +31,7 @@ impl Application for RobotChallenge {
             RobotChallenge {
                 strategies: vec!(),
                 round: 0,
+                maxEnergy: 5
             },
             Command::none(),
         )
@@ -57,7 +54,6 @@ impl Application for RobotChallenge {
     }
 
     fn view(&self) -> Element<Message> {
-
         let game_title = text("Game area")
             .width(Length::Fill)
             .size(30)
@@ -86,3 +82,54 @@ impl Application for RobotChallenge {
             .into()
     }
 }
+
+struct Tank {
+    strategy: dyn Strategy,
+    energy: usize,
+    hits: usize,
+    frags: usize,
+    point: Point, // Init to random available Point.
+    direction: Direction, // Init to random direction.
+}
+
+enum Move {
+    Fire,
+    TurnLeft,
+    Forward,
+    TurnRight,
+    Wait,
+}
+
+struct Dimension {
+    width: usize,
+    height: usize,
+}
+
+struct Point {
+    x: usize,
+    y: usize,
+}
+
+enum Direction {
+    North,
+    East,
+    South,
+    West,
+}
+struct Status {
+    direction: Direction,
+    location: Point,
+    isAlive: bool,
+}
+struct Input {
+    playfield: Dimension,
+    ownStatus: Status,
+    opponentStatus: Vec<Status>,
+    fireRange: usize,
+}
+trait Strategy {
+    fn name(&self) -> String;
+    fn author(&self) -> String;
+    fn next_move(&self, input: Input) -> Move;
+}
+
