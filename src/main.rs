@@ -8,7 +8,7 @@ fn main() -> iced::Result {
 struct RobotChallenge {
     tanks: Vec<Tank>,
     round: usize,
-    maxEnergy: usize,
+    max_energy: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -29,9 +29,9 @@ impl Application for RobotChallenge {
     fn new(_flags: ()) -> (Self, Command<Message>) {
         (
             RobotChallenge {
-                strategies: vec!(),
+                tanks: vec!(),
                 round: 0,
-                maxEnergy: 5
+                max_energy: 5
             },
             Command::none(),
         )
@@ -84,7 +84,7 @@ impl Application for RobotChallenge {
 }
 
 struct Tank {
-    strategy: dyn Strategy,
+    strategy: Box<dyn Strategy>,
     energy: usize,
     hits: usize,
     frags: usize,
@@ -92,6 +92,7 @@ struct Tank {
     direction: Direction, // Init to random direction.
 }
 
+#[derive(Debug, Clone)]
 enum Move {
     Fire,
     TurnLeft,
@@ -100,36 +101,78 @@ enum Move {
     Wait,
 }
 
+#[derive(Debug, Clone)]
 struct Dimension {
     width: usize,
     height: usize,
 }
 
+#[derive(Debug, Clone)]
 struct Point {
     x: usize,
     y: usize,
 }
 
+#[derive(Debug, Clone)]
 enum Direction {
     North,
     East,
     South,
     West,
 }
+
+#[derive(Debug, Clone)]
 struct Status {
     direction: Direction,
     location: Point,
-    isAlive: bool,
+    is_alive: bool,
 }
+
+#[derive(Debug, Clone)]
 struct Input {
     playfield: Dimension,
-    ownStatus: Status,
-    opponentStatus: Vec<Status>,
-    fireRange: usize,
+    own_status: Status,
+    opponent_status: Vec<Status>,
+    fire_range: usize,
 }
+
 trait Strategy {
     fn name(&self) -> String;
     fn author(&self) -> String;
-    fn next_move(&self, input: Input) -> Move;
+    fn next_move(&mut self, input: Input) -> Move;
+}
+
+#[derive(Debug, Clone)]
+struct Dummy {
+    name: String,
+    author: String,
+    moves: Vec<Move>,
+    move_index: usize
+}
+
+impl Dummy {
+    fn new() -> Self {
+        Self {
+            name: "Dummy".to_string(),
+            author: "JMH".to_string(),
+            moves: vec![Move::Fire, Move::TurnLeft, Move::Forward],
+            move_index: 0
+        }
+    }
+}
+impl Strategy for Dummy {
+    fn name(&self) -> String {
+        self.name.clone()
+    }
+
+    fn author(&self) -> String {
+        self.author.clone()
+    }
+
+    fn next_move(&mut self, input: Input) -> Move {
+        let next_move = self.moves.get(self.move_index).unwrap().clone();
+        self.move_index = (self.move_index + 1) % self.moves.len();
+        next_move
+    }
 }
 
