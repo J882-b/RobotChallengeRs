@@ -111,8 +111,8 @@ impl<Message> canvas::Program<Message, Renderer> for RobotChallenge {
 
             for tank in &self.board.tanks {
                 frame.with_save(|frame| {
-                    let x = (tank.point.x as u16 * 20) as f32;
-                    let y = (tank.point.y as u16 * 20) as f32;
+                    let x = (tank.point.x * 20) as f32;
+                    let y = (tank.point.y * 20) as f32;
                     frame.translate(Vector::new(x, y));
                     frame.fill( &tank_path, tank.color);
                 });
@@ -174,6 +174,7 @@ fn tank_path() -> Path {
     builder.build()
 }
 
+// TODO: #[derive(Debug)] Implement Debug in Strategy
 struct Board {
     dimension: Dimension,
     tanks : Vec<Tank>,
@@ -199,13 +200,13 @@ impl Default for Board {
     }
 }
 
-// TODO: Implement Debug
+// TODO: #[derive(Debug)] Implement Debug in Strategy
 struct Tank {
-    strategy: Box<dyn Strategy>,
+    strategy: Strategy,
     color: Color,
-    energy: u8,
-    hits: u8,
-    frags: u8,
+    energy: usize,
+    hits: usize,
+    frags: usize,
     point: BoardPoint, // Set to random available Point when adding to Board.
     direction: Direction, // Set to random direction when adding to Board.
 }
@@ -213,7 +214,7 @@ struct Tank {
 impl Default for Tank {
     fn default() -> Self {
         Self {
-            strategy: Box::new(Dummy::new()),
+            strategy: Default::default(),
             color: GameColors::GREEN,
             energy: Self::MAX_ENERGY,
             hits: 0,
@@ -225,7 +226,7 @@ impl Default for Tank {
 }
 
 impl Tank {
-    const MAX_ENERGY: u8 = 5;
+    const MAX_ENERGY: usize = 5;
 }
 
 #[derive(Debug, Clone)]
@@ -239,8 +240,8 @@ enum Move {
 
 #[derive(Debug, Clone)]
 struct Dimension {
-    width: u8,
-    height: u8,
+    width: usize,
+    height: usize,
 }
 
 impl Default for Dimension {
@@ -251,8 +252,8 @@ impl Default for Dimension {
 
 #[derive(Debug, Clone)]
 struct BoardPoint {
-    x: u8,
-    y: u8,
+    x: usize,
+    y: usize,
 }
 
 impl Default for BoardPoint {
@@ -272,55 +273,59 @@ enum Direction {
     West,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct Status {
     direction: Direction,
     location: BoardPoint,
     is_alive: bool,
 }
 
-#[derive(Debug, Clone)]
-struct StrategyInput {
+#[derive(Debug)]
+struct NextMoveInput {
     game_board: Dimension,
     own_status: Status,
     opponent_status: Vec<Status>,
     fire_range: usize,
 }
 
-trait Strategy {
-    fn name(&self) -> String;
-    fn author(&self) -> String;
-    fn next_move(&mut self, input: StrategyInput) -> &Move;
+// TODO: Implement Debug
+struct Strategy {
+    name: String,
+    author: String,
+    next_move: Box<dyn NextMove>,
+}
+
+impl Default for Strategy {
+    fn default() -> Self {
+        Self {
+            name: "Dummy".to_string(),
+            author: "JMH".to_string(),
+            next_move: Box::new(Dummy::default()),
+        }
+    }
+}
+
+trait NextMove {
+    fn next_move(&mut self, input: NextMoveInput) -> &Move;
 }
 
 #[derive(Debug, Clone)]
 struct Dummy {
-    name: String,
-    author: String,
     moves: Vec<Move>,
     move_index: usize
 }
 
-impl Dummy {
-    fn new() -> Self {
+impl Default for Dummy {
+    fn default() -> Self {
         Self {
-            name: "Dummy".to_string(),
-            author: "JMH".to_string(),
             moves: vec![Move::Fire, Move::TurnLeft, Move::Forward],
             move_index: 0
         }
     }
 }
-impl Strategy for Dummy {
-    fn name(&self) -> String {
-        self.name.clone()
-    }
 
-    fn author(&self) -> String {
-        self.author.clone()
-    }
-
-    fn next_move(&mut self, input: StrategyInput) -> &Move {
+impl NextMove for Dummy {
+    fn next_move(&mut self, input: NextMoveInput) -> &Move {
         let next_move = self.moves.get(self.move_index).unwrap();
         self.move_index = (self.move_index + 1) % self.moves.len();
         next_move
