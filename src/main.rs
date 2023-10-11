@@ -3,15 +3,15 @@
 use iced::{alignment, Application, Color, Command, Element, executor, Length, mouse, Point, Rectangle, Renderer, Settings, Theme, Vector};
 use iced::widget::canvas::{Geometry, Cache, Path, path};
 use iced::widget::{canvas, Canvas, column, container, scrollable, text};
+use std::default::Default;
 
 fn main() -> iced::Result {
     RobotChallenge::run(Settings::default())
 }
 
 struct RobotChallenge {
-    round: usize,
-    max_energy: usize,
-    tanks : Vec<Tank>,
+    round: u16,
+    board: Board,
     board_cache : Cache,
 }
 
@@ -34,8 +34,7 @@ impl Application for RobotChallenge {
         (
             RobotChallenge {
                 round: 0,
-                max_energy: 5,
-                tanks: vec!(), // TODO: Create tanks with strategy.
+                board: Default::default(),
                 board_cache : Default::default(),
             },
             Command::none(),
@@ -107,18 +106,17 @@ impl<Message> canvas::Program<Message, Renderer> for RobotChallenge {
             let background = Path::rectangle(Point::new(0.0, 0.0), frame.size());
             frame.fill(&background, GameColors::LIGHT_GRAY);
 
-            // TODO: Draw tanks.
-            let tank = tank_path();
+            // Draw tanks.
+            let tank_path = tank_path();
 
-            frame.with_save(|frame| {
-                frame.translate(Vector::new((3 * 20) as f32, (8 * 20) as f32));
-                frame.fill( &tank, GameColors::GREEN);
-            });
-
-            frame.with_save(|frame| {
-                frame.translate(Vector::new((11 * 20) as f32, (6 * 20) as f32));
-                frame.fill( &tank, GameColors::RED);
-            });
+            for tank in &self.board.tanks {
+                frame.with_save(|frame| {
+                    let x = (tank.point.x as u16 * 20) as f32;
+                    let y = (tank.point.y as u16 * 20) as f32;
+                    frame.translate(Vector::new(x, y));
+                    frame.fill( &tank_path, tank.color);
+                });
+            }
 
             // TODO: Tank hit. An X over a tank if hit.
             // TODO: Laser. A line from the shooting tank.
@@ -176,14 +174,58 @@ fn tank_path() -> Path {
     builder.build()
 }
 
+struct Board {
+    dimension: Dimension,
+    tanks : Vec<Tank>,
+}
+
+impl Default for Board {
+    fn default() -> Self {
+        Self {
+            dimension: Default::default(),
+            tanks: vec![
+                Tank{
+                    color: GameColors::RED,
+                    point: BoardPoint { x: 5, y: 15 },
+                    ..Default::default()
+                },
+                Tank{
+                    color: GameColors::BLUE,
+                    point: BoardPoint { x: 15, y: 5 },
+                    ..Default::default()
+                }],
+            
+        }
+    }
+}
+
 // TODO: Implement Debug
 struct Tank {
     strategy: Box<dyn Strategy>,
-    energy: usize,
-    hits: usize,
-    frags: usize,
-    point: Point, // Init to random available Point.
-    direction: Direction, // Init to random direction.
+    color: Color,
+    energy: u8,
+    hits: u8,
+    frags: u8,
+    point: BoardPoint, // Set to random available Point when adding to Board.
+    direction: Direction, // Set to random direction when adding to Board.
+}
+
+impl Default for Tank {
+    fn default() -> Self {
+        Self {
+            strategy: Box::new(Dummy::new()),
+            color: GameColors::GREEN,
+            energy: Self::MAX_ENERGY,
+            hits: 0,
+            frags: 0,
+            point: Default::default(),
+            direction: Direction::North,
+        }
+    }
+}
+
+impl Tank {
+    const MAX_ENERGY: u8 = 5;
 }
 
 #[derive(Debug, Clone)]
@@ -197,14 +239,29 @@ enum Move {
 
 #[derive(Debug, Clone)]
 struct Dimension {
-    width: usize,
-    height: usize,
+    width: u8,
+    height: u8,
+}
+
+impl Default for Dimension {
+    fn default() -> Self {
+        Self { width: 20, height: 20 }
+    }
 }
 
 #[derive(Debug, Clone)]
 struct BoardPoint {
-    x: usize,
-    y: usize,
+    x: u8,
+    y: u8,
+}
+
+impl Default for BoardPoint {
+    fn default() -> Self {
+        Self {
+            x: 0,
+            y: 0,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
