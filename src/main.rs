@@ -1,7 +1,7 @@
 
 
 use iced::{alignment, Application, Color, Command, Element, executor, Length, mouse, Point, Rectangle, Renderer, Settings, Theme};
-use iced::widget::canvas::{Geometry, Cache, Path};
+use iced::widget::canvas::{Geometry, Cache, Path, path};
 use iced::widget::{canvas, Canvas, column, container, scrollable, text};
 
 fn main() -> iced::Result {
@@ -102,15 +102,15 @@ impl<Message> canvas::Program<Message, Renderer> for RobotChallenge {
         _cursor: mouse::Cursor,
     ) -> Vec<Geometry> {
         let board = self.board_cache.draw(renderer, bounds.size(), |frame| {
-            let radius = frame.width().min(frame.height()) / 2.0;
 
-            // TODO: Draw game board background.
+            // Draw game board background.
             let background = Path::rectangle(Point::new(0.0, 0.0), frame.size());
-            frame.fill(&background, Color::from_rgb8(0xC2, 0x25, 0xA2 ));
+            frame.fill(&background, GameColors::LIGHT_GRAY);
 
             // TODO: Draw tanks.
+            let tank = tank_path();
+            frame.fill( &tank, GameColors::GREEN);
 
-            // TODO: Tank pattern. Three lines in the shape of an arrow.
             // TODO: Tank hit. An X over a tank if hit.
             // TODO: Laser. A line from the shooting tank.
 
@@ -118,6 +118,39 @@ impl<Message> canvas::Program<Message, Renderer> for RobotChallenge {
 
         vec![board]
     }
+}
+
+struct GameColors;
+
+impl GameColors {
+    const LIGHT_GRAY: Color = Color {
+        r: 0.824, // 0xD3
+        g: 0.824, // 0xD3
+        b: 0.824, // 0xD3
+        a: 1.0,
+    };
+
+    const GREEN: Color = Color {
+        r: 0.0,
+        g: 1.0, // 0xFF
+        b: 0.0,
+        a: 1.0,
+    };
+}
+
+// Tank Path in the shape of an arrow.
+fn tank_path() -> Path {
+    let mut builder = path::Builder::new();
+    builder.move_to(Point::new(9.0, 4.0));
+    builder.line_to(Point::new(11.0, 4.0));
+    builder.line_to(Point::new(16.0, 10.0));
+    builder.line_to(Point::new(12.0, 10.0));
+    builder.line_to(Point::new(12.0, 16.0));
+    builder.line_to(Point::new(8.0, 16.0));
+    builder.line_to(Point::new(8.0, 10.0));
+    builder.line_to(Point::new(4.0, 10.0));
+    builder.line_to(Point::new(9.0, 4.0));
+    builder.build()
 }
 
 // TODO: Implement Debug
