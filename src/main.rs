@@ -1,6 +1,6 @@
 
 
-use iced::{alignment, Application, Color, Command, Element, executor, Length, mouse, Point, Rectangle, Renderer, Settings, Theme};
+use iced::{alignment, Application, Color, Command, Element, executor, Length, mouse, Point, Rectangle, Renderer, Settings, Theme, Vector};
 use iced::widget::canvas::{Geometry, Cache, Path, path};
 use iced::widget::{canvas, Canvas, column, container, scrollable, text};
 
@@ -109,7 +109,16 @@ impl<Message> canvas::Program<Message, Renderer> for RobotChallenge {
 
             // TODO: Draw tanks.
             let tank = tank_path();
-            frame.fill( &tank, GameColors::GREEN);
+
+            frame.with_save(|frame| {
+                frame.translate(Vector::new((3 * 20) as f32, (8 * 20) as f32));
+                frame.fill( &tank, GameColors::GREEN);
+            });
+
+            frame.with_save(|frame| {
+                frame.translate(Vector::new((11 * 20) as f32, (6 * 20) as f32));
+                frame.fill( &tank, GameColors::RED);
+            });
 
             // TODO: Tank hit. An X over a tank if hit.
             // TODO: Laser. A line from the shooting tank.
@@ -134,6 +143,20 @@ impl GameColors {
         r: 0.0,
         g: 1.0, // 0xFF
         b: 0.0,
+        a: 1.0,
+    };
+
+    const RED: Color = Color {
+        r: 1.0,
+        g: 0.0,
+        b: 0.0,
+        a: 1.0,
+    };
+
+    const BLUE: Color = Color {
+        r: 0.0,
+        g: 0.0,
+        b: 1.0,
         a: 1.0,
     };
 }
