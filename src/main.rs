@@ -1,14 +1,16 @@
-use iced::{alignment, Application, Color, Command, Element, executor, Length, Settings, Theme};
-use iced::widget::{column, container, scrollable, text};
+use iced::{alignment, Application, Color, Command, Element, executor, Length, mouse, Point, Rectangle, Renderer, Settings, Size, Theme};
+use iced::widget::canvas::{Geometry, Cache, Path, Stroke, stroke, LineCap};
+use iced::widget::{canvas, Canvas, column, container, scrollable, text};
 
 fn main() -> iced::Result {
     RobotChallenge::run(Settings::default())
 }
 
 struct RobotChallenge {
-    tanks: Vec<Tank>,
     round: usize,
     max_energy: usize,
+    tanks : Vec<Tank>,
+    board_cache : Cache,
 }
 
 #[derive(Debug, Clone)]
@@ -29,9 +31,10 @@ impl Application for RobotChallenge {
     fn new(_flags: ()) -> (Self, Command<Message>) {
         (
             RobotChallenge {
-                tanks: vec!(),
                 round: 0,
-                max_energy: 5
+                max_energy: 5,
+                tanks: vec!(), // TODO: Create tanks with strategy.
+                board_cache : Default::default(),
             },
             Command::none(),
         )
@@ -60,7 +63,9 @@ impl Application for RobotChallenge {
             .style(Color::from([0.5, 0.5, 0.5]))
             .horizontal_alignment(alignment::Horizontal::Center);
 
-        // TODO: Game board
+        let game_board : Canvas<&RobotChallenge, Message> = canvas(self as &Self)
+            .width(400)
+            .height(400);
 
         let score_title = text("Score area")
             .width(Length::Fill)
@@ -70,7 +75,7 @@ impl Application for RobotChallenge {
 
         // TODO: Score listing
 
-        let content = column![game_title, score_title]
+        let content = column![game_title, game_board, score_title]
             .spacing(20);
 
         scrollable(
@@ -83,6 +88,34 @@ impl Application for RobotChallenge {
     }
 }
 
+impl<Message> canvas::Program<Message, Renderer> for RobotChallenge {
+    type State = ();
+
+    fn draw(
+        &self,
+        _state: &Self::State,
+        renderer: &Renderer,
+        _theme: &Theme,
+        bounds: Rectangle,
+        _cursor: mouse::Cursor,
+    ) -> Vec<Geometry> {
+        let board = self.board_cache.draw(renderer, bounds.size(), |frame| {
+            let radius = frame.width().min(frame.height()) / 2.0;
+
+            // TODO: Draw game board background.
+            let background = Path::rectangle(Point::new(0.0, 0.0), frame.size());
+            frame.fill(&background, Color::from_rgb8(0xC2, 0x25, 0xA2 ));
+
+            // TODO: Draw tanks.
+
+
+        });
+
+        vec![board]
+    }
+}
+
+// TODO: Implement Debug
 struct Tank {
     strategy: Box<dyn Strategy>,
     energy: usize,
@@ -108,7 +141,7 @@ struct Dimension {
 }
 
 #[derive(Debug, Clone)]
-struct Point {
+struct BoardPoint {
     x: usize,
     y: usize,
 }
@@ -124,13 +157,13 @@ enum Direction {
 #[derive(Debug, Clone)]
 struct Status {
     direction: Direction,
-    location: Point,
+    location: BoardPoint,
     is_alive: bool,
 }
 
 #[derive(Debug, Clone)]
 struct Input {
-    playfield: Dimension,
+    game_board: Dimension,
     own_status: Status,
     opponent_status: Vec<Status>,
     fire_range: usize,
@@ -139,7 +172,7 @@ struct Input {
 trait Strategy {
     fn name(&self) -> String;
     fn author(&self) -> String;
-    fn next_move(&mut self, input: Input) -> Move;
+    fn next_move(&mut self, input: Input) -> &Move;
 }
 
 #[derive(Debug, Clone)]
@@ -169,8 +202,8 @@ impl Strategy for Dummy {
         self.author.clone()
     }
 
-    fn next_move(&mut self, input: Input) -> Move {
-        let next_move = self.moves.get(self.move_index).unwrap().clone();
+    fn next_move(&mut self, input: Input) -> &Move {
+        let next_move = self.moves.get(self.move_index).unwrap();
         self.move_index = (self.move_index + 1) % self.moves.len();
         next_move
     }
