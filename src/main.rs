@@ -1,5 +1,7 @@
-use iced::{alignment, Application, Color, Command, Element, executor, Length, mouse, Point, Rectangle, Renderer, Settings, Size, Theme};
-use iced::widget::canvas::{Geometry, Cache, Path, Stroke, stroke, LineCap};
+
+
+use iced::{alignment, Application, Color, Command, Element, executor, Length, mouse, Point, Rectangle, Renderer, Settings, Theme};
+use iced::widget::canvas::{Geometry, Cache, Path};
 use iced::widget::{canvas, Canvas, column, container, scrollable, text};
 
 fn main() -> iced::Result {
@@ -108,6 +110,9 @@ impl<Message> canvas::Program<Message, Renderer> for RobotChallenge {
 
             // TODO: Draw tanks.
 
+            // TODO: Tank pattern. Three lines in the shape of an arrow.
+            // TODO: Tank hit. An X over a tank if hit.
+            // TODO: Laser. A line from the shooting tank.
 
         });
 
@@ -162,7 +167,7 @@ struct Status {
 }
 
 #[derive(Debug, Clone)]
-struct Input {
+struct StrategyInput {
     game_board: Dimension,
     own_status: Status,
     opponent_status: Vec<Status>,
@@ -172,7 +177,7 @@ struct Input {
 trait Strategy {
     fn name(&self) -> String;
     fn author(&self) -> String;
-    fn next_move(&mut self, input: Input) -> &Move;
+    fn next_move(&mut self, input: StrategyInput) -> &Move;
 }
 
 #[derive(Debug, Clone)]
@@ -202,7 +207,7 @@ impl Strategy for Dummy {
         self.author.clone()
     }
 
-    fn next_move(&mut self, input: Input) -> &Move {
+    fn next_move(&mut self, input: StrategyInput) -> &Move {
         let next_move = self.moves.get(self.move_index).unwrap();
         self.move_index = (self.move_index + 1) % self.moves.len();
         next_move
