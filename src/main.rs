@@ -12,10 +12,14 @@ fn main() -> iced::Result {
 }
 
 struct RobotChallenge {
-    round: u16,
+    round: usize,
     next_tank_index: Vec<usize>,
     board: Board,
     board_cache : Cache,
+}
+
+impl RobotChallenge {
+    const MAX_ROUNDS: usize = 20;
 }
 
 #[derive(Debug, Clone)]
@@ -23,6 +27,8 @@ enum Message {
     NewGame(Result<String, SleeperError>),
     NewRound(Result<String, SleeperError>),
     Move(Result<String, SleeperError>),
+    Laser(Result<String, SleeperError>),
+    Hit(Result<String, SleeperError>),
 }
 
 impl Application for RobotChallenge {
@@ -55,25 +61,43 @@ impl Application for RobotChallenge {
                 Command::perform(Sleeper::sleep(Duration::from_millis(100)), Message::NewRound)
             }
             Message::NewRound(_) => {
-                println!("NewRound");
                 self.round += 1;
-                // TODO: Randomize next tank index
-                for index in 0..self.board.tanks.len() {
-                    self.next_tank_index.push(index);
-                                 }
-                Command::perform(Sleeper::sleep(Duration::from_millis(100)), Message::Move)
-            }
-            Message::Move(_) => {
-                println!("Move");
-                if self.next_tank_index.is_empty() {
-                    // TODO: Trigger new round
+                println!("NewRound {}", self.round);
+                if self.round >= RobotChallenge::MAX_ROUNDS {
                     Command::none()
                 } else {
-                    let index = self.next_tank_index.pop().unwrap();
-                    println!("{:?}",self.board.tanks.get(index).unwrap());
+                    // TODO: Randomize next tank index
+                    for index in 0..self.board.tanks.len() {
+                        self.next_tank_index.push(index);
+                    }
                     Command::perform(Sleeper::sleep(Duration::from_millis(100)), Message::Move)
                 }
-
+            }
+            Message::Move(_) => {
+                if self.next_tank_index.is_empty() {
+                    Command::perform(Sleeper::sleep(Duration::from_millis(100)), Message::NewRound)
+                } else {
+                    let index = self.next_tank_index.pop().unwrap();
+                    let tank = self.board.tanks.get_mut(index).unwrap();
+                    println!("{:?}",tank);
+                    // TODO Next move input.
+                    let next_move = tank.strategy.next_move(Default::default());
+                    println!("{:?}", next_move);
+                    if Move::Fire == *next_move {
+                        Command::perform(Sleeper::sleep(Duration::from_millis(100)), Message::Laser)
+                    } else {
+                        Command::perform(Sleeper::sleep(Duration::from_millis(100)), Message::Move)
+                    }
+                }
+            }
+            Message::Laser(_) => {
+                println!("Laser");
+                // TODO: if Hit go to Hit.
+                Command::perform(Sleeper::sleep(Duration::from_millis(100)), Message::Move)
+            }
+            Message::Hit(_) => {
+                println!("Hit");
+                Command::none()
             }
         }
     }
@@ -153,8 +177,10 @@ impl<Message> canvas::Program<Message, Renderer> for RobotChallenge {
                 });
             }
 
-            // TODO: Tank hit. An X over a tank if hit.
             // TODO: Laser. A line from the shooting tank.
+
+            // TODO: Tank hit. An X over a tank if hit.
+
 
         });
 
@@ -213,6 +239,8 @@ fn tank_path() -> Path {
 struct Board {
     dimension: Dimension,
     tanks : Vec<Tank>,
+    laser: Laser,
+    hit: Hit,
 }
 
 impl Default for Board {
@@ -230,9 +258,24 @@ impl Default for Board {
                     point: BoardPoint { x: 15, y: 5 },
                     ..Default::default()
                 }],
-            
+            laser: Default::default(),
+            hit: Default::default(),
         }
     }
+}
+
+#[derive(Default, Debug)]
+struct Hit {
+    point: BoardPoint,
+    is_visible: bool,
+}
+
+
+#[derive(Default, Debug)]
+struct Laser {
+    point: BoardPoint,
+    direction: Direction,
+    is_visible: bool,
 }
 
 struct Tank {
@@ -260,16 +303,17 @@ impl Default for Tank {
             hits: 0,
             frags: 0,
             point: Default::default(),
-            direction: Direction::North,
+            direction: Default::default(),
         }
     }
 }
 
 impl Tank {
     const MAX_ENERGY: usize = 5;
+    const FIRE_RANGE: usize = 10;
 }
 
-#[derive(Debug, Clone)]
+#[derive(PartialEq, Debug, Clone)]
 enum Move {
     Fire,
     TurnLeft,
@@ -313,19 +357,24 @@ enum Direction {
     West,
 }
 
-#[derive(Debug)]
-struct Status {
+impl Default for Direction {
+    fn default() -> Self {
+        Direction::North
+    }
+}
+
+#[derive(Default, Debug)]
+struct TankStatus {
     direction: Direction,
     location: BoardPoint,
     is_alive: bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 struct NextMoveInput {
     game_board: Dimension,
-    own_status: Status,
-    opponent_status: Vec<Status>,
-    fire_range: usize,
+    own_status: TankStatus,
+    opponent_status: Vec<TankStatus>,
 }
 
 trait Strategy {
