@@ -6,6 +6,8 @@ use iced::widget::{canvas, Canvas, column, container, scrollable, text};
 use std::default::Default;
 use std::fmt::{Debug, Formatter};
 use std::time::Duration;
+use iced::widget::canvas::path::lyon_path::geom::Angle;
+use iced::widget::canvas::path::lyon_path::geom::euclid::Transform2D;
 
 fn main() -> iced::Result {
     RobotChallenge::run(Settings::default())
@@ -82,7 +84,13 @@ impl Application for RobotChallenge {
                     println!("{:?}",tank);
                     // TODO Next move input.
                     let next_move = tank.strategy.next_move(Default::default());
+                    if *next_move == Move::TurnLeft {
+                            tank.direction = tank.direction.counter_clockwise();
+                    } else if *next_move == Move::TurnRight {
+                            tank.direction = tank.direction.clockwise();
+                    }
                     println!("{:?}", next_move);
+                    self.board_cache.clear();  // Trigger draw on canvas.
                     if Move::Fire == *next_move {
                         Command::perform(Sleeper::sleep(Duration::from_millis(100)), Message::Laser)
                     } else {
@@ -167,14 +175,20 @@ impl<Message> canvas::Program<Message, Renderer> for RobotChallenge {
 
             // Draw tanks.
             let tank_path = tank_path();
+            let center_transform = Transform2D::translation(-10.0, -10.0);
+            let restore_transform = Transform2D::translation(10.0, 10.0);
 
             for tank in &self.board.tanks {
                 frame.with_save(|frame| {
-                    // TODO: Rotate tank.
+                    // Rotate tank.
+                    let center_path = tank_path.transform(&center_transform);
+                    let transform_rotation = Transform2D::rotation(Angle::degrees(tank.direction.degrees()));
+                    let rotated_path = center_path.transform(&transform_rotation);
+                    let restore_path = rotated_path.transform(&restore_transform);
                     let x = (tank.point.x * 20) as f32;
                     let y = (tank.point.y * 20) as f32;
                     frame.translate(Vector::new(x, y));
-                    frame.fill( &tank_path, tank.color);
+                    frame.fill( &restore_path, tank.color);
                 });
             }
 
@@ -232,7 +246,7 @@ fn tank_path() -> Path {
     builder.line_to(Point::new(8.0, 16.0));
     builder.line_to(Point::new(8.0, 10.0));
     builder.line_to(Point::new(4.0, 10.0));
-    builder.line_to(Point::new(9.0, 4.0));
+    builder.close();
     builder.build()
 }
 
@@ -367,21 +381,12 @@ enum Direction {
 }
 
 impl Direction {
-    fn angle(&self) -> usize {
-        match *self {
-            Self::North => 0,
-            Self::East => 90,
-            Self::South => 180,
-            Self::West => 270,
-        }
-    }
-
-    fn angle_rads(&self) -> f32 {
+    fn degrees(&self) -> f32 {
         match *self {
             Self::North => 0.0,
-            Self::East => 0.5 * std::f32::consts::PI,
-            Self::South => std::f32::consts::PI,
-            Self::West => 1.5 * std::f32::consts::PI,
+            Self::East => 90.0,
+            Self::South => 180.0,
+            Self::West => 270.0,
         }
     }
 
