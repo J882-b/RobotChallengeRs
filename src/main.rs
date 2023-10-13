@@ -170,6 +170,7 @@ impl<Message> canvas::Program<Message, Renderer> for RobotChallenge {
 
             for tank in &self.board.tanks {
                 frame.with_save(|frame| {
+                    // TODO: Rotate tank.
                     let x = (tank.point.x * 20) as f32;
                     let y = (tank.point.y * 20) as f32;
                     frame.translate(Vector::new(x, y));
@@ -336,8 +337,8 @@ impl Default for Dimension {
 
 #[derive(Debug, Clone)]
 struct BoardPoint {
-    x: usize,
-    y: usize,
+    x: isize,
+    y: isize,
 }
 
 impl Default for BoardPoint {
@@ -349,12 +350,85 @@ impl Default for BoardPoint {
     }
 }
 
+impl BoardPoint {
+    fn with_offset(&self, direction: Direction, offset: isize) -> Self {
+        Self {
+            x: self.x + direction.x() * offset,
+            y: self.y + direction.y() * offset}
+        }
+}
+
 #[derive(Debug, Clone)]
 enum Direction {
     North,
     East,
     South,
     West,
+}
+
+impl Direction {
+    fn angle(&self) -> usize {
+        match *self {
+            Self::North => 0,
+            Self::East => 90,
+            Self::South => 180,
+            Self::West => 270,
+        }
+    }
+
+    fn angle_rads(&self) -> f32 {
+        match *self {
+            Self::North => 0.0,
+            Self::East => 0.5 * std::f32::consts::PI,
+            Self::South => std::f32::consts::PI,
+            Self::West => 1.5 * std::f32::consts::PI,
+        }
+    }
+
+    fn x(&self) -> isize {
+        match *self {
+            Self::North => 0,
+            Self::East => 1,
+            Self::South => 0,
+            Self::West => -1,
+        }
+    }
+
+    fn y(&self) -> isize {
+        match *self {
+            Self::North => -1,
+            Self::East => 0,
+            Self::South => 1,
+            Self::West => 0,
+        }
+    }
+
+    fn clockwise(&self) -> Direction {
+        match *self {
+            Self::North => Self::East,
+            Self::East => Self::South,
+            Self::South => Self::West,
+            Self::West => Self::North,
+        }
+    }
+
+    fn counter_clockwise(&self) -> Direction {
+        match *self {
+            Self::North => Self::West,
+            Self::East => Self::North,
+            Self::South => Self::East,
+            Self::West => Self::South,
+        }
+    }
+
+    fn opposite(&self) -> Direction {
+        match *self {
+            Self::North => Self::South,
+            Self::East => Self::West,
+            Self::South => Self::North,
+            Self::West => Self::East,
+        }
+    }
 }
 
 impl Default for Direction {
