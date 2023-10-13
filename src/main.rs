@@ -4,6 +4,8 @@ use iced::{alignment, Application, Color, Command, Element, executor, Length, mo
 use iced::widget::canvas::{Geometry, Cache, Path, path};
 use iced::widget::{canvas, Canvas, column, container, scrollable, text};
 use std::default::Default;
+use std::fmt::{Debug, Formatter};
+use std::time::Duration;
 
 fn main() -> iced::Result {
     RobotChallenge::run(Settings::default())
@@ -11,17 +13,16 @@ fn main() -> iced::Result {
 
 struct RobotChallenge {
     round: u16,
+    next_tank_index: Vec<usize>,
     board: Board,
     board_cache : Cache,
 }
 
 #[derive(Debug, Clone)]
 enum Message {
-    NewGame,
-    NewRound,
-    Move,
-    Shoot,
-    Hit,
+    NewGame(Result<String, SleeperError>),
+    NewRound(Result<String, SleeperError>),
+    Move(Result<String, SleeperError>),
 }
 
 impl Application for RobotChallenge {
@@ -32,12 +33,13 @@ impl Application for RobotChallenge {
 
     fn new(_flags: ()) -> (Self, Command<Message>) {
         (
-            RobotChallenge {
+            Self {
                 round: 0,
                 board: Default::default(),
+                next_tank_index: vec![],
                 board_cache : Default::default(),
             },
-            Command::none(),
+            Command::perform(Sleeper::sleep(Duration::from_millis(100)), Message::NewGame)
         )
     }
 
@@ -47,14 +49,33 @@ impl Application for RobotChallenge {
 
     fn update(&mut self, message: Self::Message) -> Command<Self::Message> {
         match message {
-            Message::NewGame => {}
-            Message::NewRound => {}
-            Message::Move => {}
-            Message::Shoot => {}
-            Message::Hit => {}
-        }
+            Message::NewGame(_) => {
+                println!("NewGame");
+                // TODO: Setup a new game.
+                Command::perform(Sleeper::sleep(Duration::from_millis(100)), Message::NewRound)
+            }
+            Message::NewRound(_) => {
+                println!("NewRound");
+                self.round += 1;
+                // TODO: Randomize next tank index
+                for index in 0..self.board.tanks.len() {
+                    self.next_tank_index.push(index);
+                                 }
+                Command::perform(Sleeper::sleep(Duration::from_millis(100)), Message::Move)
+            }
+            Message::Move(_) => {
+                println!("Move");
+                if self.next_tank_index.is_empty() {
+                    // TODO: Trigger new round
+                    Command::none()
+                } else {
+                    let index = self.next_tank_index.pop().unwrap();
+                    println!("{:?}",self.board.tanks.get(index).unwrap());
+                    Command::perform(Sleeper::sleep(Duration::from_millis(100)), Message::Move)
+                }
 
-        Command::none()
+            }
+        }
     }
 
     fn view(&self) -> Element<Message> {
@@ -87,6 +108,20 @@ impl Application for RobotChallenge {
         )
             .into()
     }
+}
+
+struct Sleeper;
+
+impl Sleeper {
+    async fn sleep(duration: Duration) -> Result<String, SleeperError>{
+        std::thread::sleep(duration);
+        Ok("Booing".to_string())
+    }
+}
+
+#[derive(Debug, Clone)]
+enum SleeperError {
+    String,
 }
 
 impl<Message> canvas::Program<Message, Renderer> for RobotChallenge {
@@ -200,9 +235,8 @@ impl Default for Board {
     }
 }
 
-// TODO: #[derive(Debug)] Implement Debug in Strategy
 struct Tank {
-    strategy: Strategy,
+    strategy: Box<dyn Strategy>,
     color: Color,
     energy: usize,
     hits: usize,
@@ -211,10 +245,16 @@ struct Tank {
     direction: Direction, // Set to random direction when adding to Board.
 }
 
+impl Debug for Tank {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Tank(strategy: {}, energy: {}, hits: {}, frags: {:?}, {:?}, direction: {:?}", self.strategy.name(), self.energy, self.hits, self.frags, self.point, self.direction)
+    }
+}
+
 impl Default for Tank {
     fn default() -> Self {
         Self {
-            strategy: Default::default(),
+            strategy: Box::new(Dummy::default()),
             color: GameColors::GREEN,
             energy: Self::MAX_ENERGY,
             hits: 0,
@@ -288,24 +328,9 @@ struct NextMoveInput {
     fire_range: usize,
 }
 
-// TODO: Implement Debug
-struct Strategy {
-    name: String,
-    author: String,
-    next_move: Box<dyn NextMove>,
-}
-
-impl Default for Strategy {
-    fn default() -> Self {
-        Self {
-            name: "Dummy".to_string(),
-            author: "JMH".to_string(),
-            next_move: Box::new(Dummy::default()),
-        }
-    }
-}
-
-trait NextMove {
+trait Strategy {
+    fn name(&self) -> String;
+    fn author(&self) -> String;
     fn next_move(&mut self, input: NextMoveInput) -> &Move;
 }
 
@@ -324,7 +349,15 @@ impl Default for Dummy {
     }
 }
 
-impl NextMove for Dummy {
+impl Strategy for Dummy {
+    fn name(&self) -> String {
+        "Dummy".to_string()
+    }
+
+    fn author(&self) -> String {
+        "JMH".to_string()
+    }
+
     fn next_move(&mut self, input: NextMoveInput) -> &Move {
         let next_move = self.moves.get(self.move_index).unwrap();
         self.move_index = (self.move_index + 1) % self.moves.len();
