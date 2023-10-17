@@ -1,7 +1,7 @@
 
 
 use iced::{alignment, Application, Color, Command, Element, executor, Length, mouse, Point, Rectangle, Renderer, Settings, Theme, Vector};
-use iced::widget::canvas::{Geometry, Cache, Path, path};
+use iced::widget::canvas::{Geometry, Cache, Path, path, Stroke, stroke, LineCap};
 use iced::widget::{canvas, Canvas, column, container, scrollable, text};
 use std::default::Default;
 use std::fmt::{Debug, Formatter};
@@ -25,8 +25,8 @@ struct RobotChallenge {
 
 impl RobotChallenge {
     fn is_valid_point(&self, point: &BoardPoint) -> bool {
-
-        true
+        0 <= point.x && point.x < self.dimension.width as isize
+            && 0 <= point.y && point.y < self.dimension.height as isize
     }
 
     fn is_tank(&self, point: &BoardPoint) -> bool {
@@ -63,7 +63,7 @@ impl Application for RobotChallenge {
                 tanks: vec![
                     Tank{
                         color: GameColors::RED,
-                        point: BoardPoint { x: 18, y: 10 },
+                        point: BoardPoint { x: 6, y: 10 },
                         ..Default::default()
                     },
                     Tank{
@@ -108,6 +108,7 @@ impl Application for RobotChallenge {
                     Command::perform(Sleeper::sleep(Duration::from_millis(100)), Message::NewRound)
                 } else {
                     let index = self.next_tank_index.pop().unwrap();
+                    // TODO: If energy == 0 take another tank.
                     let mut next_move = Move::Wait;
                     {
                         let tank = self.tanks.get_mut(index).unwrap();
@@ -142,11 +143,12 @@ impl Application for RobotChallenge {
                             if !self.is_valid_point(&fire_point) {
                                 self.laser.length = i - 1;
                                 break;
-                            }
-                            if self.is_tank(&fire_point) {
+                            } else if self.is_tank(&fire_point) {
                                 self.laser.hit = true;
                                 self.laser.length = i - 1;
                                 self.hit.point = fire_point;
+                                // TODO: Update tank energy, hits, frags.
+                                break;
                             }
                         }
                     }
@@ -163,9 +165,11 @@ impl Application for RobotChallenge {
                 let hit = self.laser.hit;
                 // Reset laser
                 self.laser = Default::default();
+                self.board_cache.clear();  // Trigger draw on canvas.
                 // Perform hit if needed.
                 if hit {
                     self.hit.is_visible = true;
+                    self.board_cache.clear();  // Trigger draw on canvas.
                     Command::perform(Sleeper::sleep(Duration::from_millis(100)), Message::Hit)
                 } else {
                     Command::perform(Sleeper::sleep(Duration::from_millis(100)), Message::Move)
@@ -175,6 +179,7 @@ impl Application for RobotChallenge {
                 println!("Hit");
                 // Reset hit
                 self.hit = Default::default();
+                self.board_cache.clear();  // Trigger draw on canvas.
                 Command::perform(Sleeper::sleep(Duration::from_millis(100)), Message::Move)
             }
         }
@@ -259,14 +264,72 @@ impl<Message> canvas::Program<Message, Renderer> for RobotChallenge {
                     let y = (tank.point.y * 20) as f32;
                     frame.translate(Vector::new(x, y));
                     frame.fill( &restore_path, tank.color);
+
+                    // TODO: Draw dead tank. A X over a tank if dead.
                 });
             }
 
-            // TODO: Laser. A line from the shooting tank.
+            // Draw laser. A line from the shooting tank.
+            if self.laser.is_visible {
+                let laser_start = self.laser.point.with_offset(self.laser.direction, 1);
+                let laser_end = self.laser.point.with_offset(self.laser.direction, self.laser.length as isize);
+                let mut start_point = Point::new(laser_start.x as f32 * 20.0 + 10.0, laser_start.y as f32 * 20.0 + 10.0);
+                let mut end_point = Point::new(laser_end.x as f32 * 20.0 + 10.0, laser_end.y as f32 * 20.0 + 10.0);
 
-            // TODO: Tank hit. An X over a tank if hit.
+                // Adjust laser end points from the default center of board cell.
+                match self.laser.direction {
+                    Direction::North => {
+                        start_point.y += 10.0;
+                        end_point.y -= 10.0;
+                    }
+                    Direction::South => {
+                        start_point.y -= 10.0;
+                        end_point.y += 10.0;
+                    }
+                    Direction::East => {
+                        start_point.x -= 10.0;
+                        end_point.x += 10.0;
+                    }
+                    Direction::West => {
+                        start_point.x += 10.0;
+                        end_point.x -= 10.0;
+                    }
+                }
 
+                let laser_path = Path::line(start_point, end_point);
 
+                let laser_stroke = || -> Stroke {
+                    Stroke {
+                        width: 2.0,
+                        style: stroke::Style::Solid(Color::BLACK),
+                        line_cap: LineCap::Round,
+                        ..Stroke::default()
+                    }
+                };
+
+                frame.stroke(&laser_path, laser_stroke());
+            }
+
+            // Draw hit. A X over a tank if hit.
+            if self.hit.is_visible {
+                let hit_path1 = Path::line(Point::new(4.0, 4.0), Point::new(16.0, 16.0));
+                let hit_path2 = Path::line(Point::new(16.0, 4.0), Point::new(4.0, 16.0));
+
+                let hit_stroke = || -> Stroke {
+                    Stroke {
+                        width: 2.0,
+                        style: stroke::Style::Solid(Color::BLACK),
+                        line_cap: LineCap::Round,
+                        ..Stroke::default()
+                    }
+                };
+
+                let x = (self.hit.point.x * 20) as f32;
+                let y = (self.hit.point.y * 20) as f32;
+                frame.translate(Vector::new(x, y));
+                frame.stroke(&hit_path1, hit_stroke());
+                frame.stroke(&hit_path2, hit_stroke());
+            }
         });
 
         vec![board]
@@ -326,7 +389,6 @@ struct Hit {
     is_visible: bool,
 }
 
-
 #[derive(Default, Debug)]
 struct Laser {
     point: BoardPoint,
@@ -368,7 +430,7 @@ impl Default for Tank {
 
 impl Tank {
     const MAX_ENERGY: usize = 5;
-    const FIRE_RANGE: usize = 10;
+    const FIRE_RANGE: usize = 5;
 }
 
 #[derive(PartialEq, Debug, Clone)]
