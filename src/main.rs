@@ -268,12 +268,13 @@ impl Default for Board {
             tanks: vec![
                 Tank{
                     color: GameColors::RED,
-                    point: BoardPoint { x: 5, y: 15 },
+                    point: BoardPoint { x: 18, y: 10 },
                     ..Default::default()
                 },
                 Tank{
                     color: GameColors::BLUE,
-                    point: BoardPoint { x: 15, y: 5 },
+                    point: BoardPoint { x: 2, y: 10 },
+                    strategy: Box::new(Dummy::dummy2()),
                     ..Default::default()
                 }],
             laser: Default::default(),
@@ -467,6 +468,8 @@ trait Strategy {
 
 #[derive(Debug, Clone)]
 struct Dummy {
+    name: String,
+    author: String,
     moves: Vec<Move>,
     move_index: usize
 }
@@ -474,19 +477,32 @@ struct Dummy {
 impl Default for Dummy {
     fn default() -> Self {
         Self {
+            name: "Dummy".to_string(),
+            author: "JMH".to_string(),
             moves: vec![Move::Fire, Move::TurnLeft, Move::Forward],
-            move_index: 0
+            move_index: 0,
+        }
+    }
+}
+
+impl Dummy {
+    fn dummy2() -> Self {
+        Self {
+            name: "Dummy2".to_string(),
+            author: "JMH".to_string(),
+            moves: vec![Move::Fire, Move::TurnRight, Move::Forward],
+            move_index: 0,
         }
     }
 }
 
 impl Strategy for Dummy {
     fn name(&self) -> String {
-        "Dummy".to_string()
+        self.name.clone()
     }
 
     fn author(&self) -> String {
-        "JMH".to_string()
+        self.name.clone()
     }
 
     fn next_move(&mut self, input: NextMoveInput) -> &Move {
