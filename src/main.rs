@@ -16,8 +16,22 @@ fn main() -> iced::Result {
 struct RobotChallenge {
     round: usize,
     next_tank_index: Vec<usize>,
-    board: Board,
     board_cache : Cache,
+    dimension: Dimension,
+    tanks : Vec<Tank>,
+    laser: Laser,
+    hit: Hit,
+}
+
+impl RobotChallenge {
+    fn is_valid_point(&self, point: &BoardPoint) -> bool {
+
+        true
+    }
+
+    fn is_tank(&self, point: &BoardPoint) -> bool {
+        self.tanks.iter().any(|tank| tank.point == *point)
+    }
 }
 
 impl RobotChallenge {
@@ -43,9 +57,23 @@ impl Application for RobotChallenge {
         (
             Self {
                 round: 0,
-                board: Default::default(),
                 next_tank_index: vec![],
                 board_cache : Default::default(),
+                dimension: Default::default(),
+                tanks: vec![
+                    Tank{
+                        color: GameColors::RED,
+                        point: BoardPoint { x: 18, y: 10 },
+                        ..Default::default()
+                    },
+                    Tank{
+                        color: GameColors::BLUE,
+                        point: BoardPoint { x: 2, y: 10 },
+                        strategy: Box::new(Dummy::dummy2()),
+                        ..Default::default()
+                    }],
+                laser: Default::default(),
+                hit: Default::default(),
             },
             Command::perform(Sleeper::sleep(Duration::from_millis(100)), Message::NewGame)
         )
@@ -69,7 +97,7 @@ impl Application for RobotChallenge {
                     Command::none()
                 } else {
                     // TODO: Randomize next tank index
-                    for index in 0..self.board.tanks.len() {
+                    for index in 0..self.tanks.len() {
                         self.next_tank_index.push(index);
                     }
                     Command::perform(Sleeper::sleep(Duration::from_millis(100)), Message::Move)
@@ -80,21 +108,50 @@ impl Application for RobotChallenge {
                     Command::perform(Sleeper::sleep(Duration::from_millis(100)), Message::NewRound)
                 } else {
                     let index = self.next_tank_index.pop().unwrap();
-                    let tank = self.board.tanks.get_mut(index).unwrap();
-                    println!("{:?}",tank);
-                    // TODO Next move input.
-                    let next_move = tank.strategy.next_move(Default::default());
-                    if *next_move == Move::TurnLeft {
-                        tank.direction = tank.direction.counter_clockwise();
-                    } else if *next_move == Move::TurnRight {
-                        tank.direction = tank.direction.clockwise();
-                    } else if *next_move == Move::Forward {
-                        let direction = tank.direction.clone();
-                        tank.point = tank.point.with_offset(direction, 1);
+                    let mut next_move = Move::Wait;
+                    {
+                        let tank = self.tanks.get_mut(index).unwrap();
+                        println!("{:?}", tank);
+                        next_move = tank.strategy.next_move(Default::default());
+                        println!("{:?}", next_move);
                     }
-                    println!("{:?}", next_move);
+                    if next_move == Move::TurnLeft {
+                        let tank = self.tanks.get_mut(index).unwrap();
+                        tank.direction = tank.direction.counter_clockwise();
+                    } else if next_move == Move::TurnRight {
+                        let tank = self.tanks.get_mut(index).unwrap();
+                        tank.direction = tank.direction.clockwise();
+                    } else if next_move == Move::Forward {
+                        let tank = self.tanks.get(index).unwrap();
+                        let new_point = tank.point.with_offset(tank.direction, 1);
+                        let is_valid_point = self.is_valid_point(&new_point);
+                        if is_valid_point {
+                            let tank = self.tanks.get_mut(index).unwrap();
+                            tank.point = new_point;
+                        }
+                    } else if next_move ==  Move::Fire{
+                        let tank = self.tanks.get(index).unwrap();
+                        self.laser.point = tank.point.clone();
+                        self.laser.direction = tank.direction.clone();
+                        self.laser.length = Tank::FIRE_RANGE;
+                        self.laser.is_visible = true;
+                        // Change laser length if there is a tank or board edge.
+                        let fire_direction = self.laser.direction.clone();
+                        for i in 1..=Tank::FIRE_RANGE {
+                            let fire_point = self.laser.point.with_offset(fire_direction, i as isize);
+                            if !self.is_valid_point(&fire_point) {
+                                self.laser.length = i - 1;
+                                break;
+                            }
+                            if self.is_tank(&fire_point) {
+                                self.laser.hit = true;
+                                self.laser.length = i - 1;
+                                self.hit.point = fire_point;
+                            }
+                        }
+                    }
                     self.board_cache.clear();  // Trigger draw on canvas.
-                    if Move::Fire == *next_move {
+                    if Move::Fire == next_move {
                         Command::perform(Sleeper::sleep(Duration::from_millis(100)), Message::Laser)
                     } else {
                         Command::perform(Sleeper::sleep(Duration::from_millis(100)), Message::Move)
@@ -103,12 +160,22 @@ impl Application for RobotChallenge {
             }
             Message::Laser(_) => {
                 println!("Laser");
-                // TODO: if Hit go to Hit.
-                Command::perform(Sleeper::sleep(Duration::from_millis(100)), Message::Move)
+                let hit = self.laser.hit;
+                // Reset laser
+                self.laser = Default::default();
+                // Perform hit if needed.
+                if hit {
+                    self.hit.is_visible = true;
+                    Command::perform(Sleeper::sleep(Duration::from_millis(100)), Message::Hit)
+                } else {
+                    Command::perform(Sleeper::sleep(Duration::from_millis(100)), Message::Move)
+                }
             }
             Message::Hit(_) => {
                 println!("Hit");
-                Command::none()
+                // Reset hit
+                self.hit = Default::default();
+                Command::perform(Sleeper::sleep(Duration::from_millis(100)), Message::Move)
             }
         }
     }
@@ -181,7 +248,7 @@ impl<Message> canvas::Program<Message, Renderer> for RobotChallenge {
             let center_transform = Transform2D::translation(-10.0, -10.0);
             let restore_transform = Transform2D::translation(10.0, 10.0);
 
-            for tank in &self.board.tanks {
+            for tank in &self.tanks {
                 frame.with_save(|frame| {
                     // Rotate tank.
                     let center_path = tank_path.transform(&center_transform);
@@ -253,36 +320,6 @@ fn tank_path() -> Path {
     builder.build()
 }
 
-// TODO: #[derive(Debug)] Implement Debug in Strategy
-struct Board {
-    dimension: Dimension,
-    tanks : Vec<Tank>,
-    laser: Laser,
-    hit: Hit,
-}
-
-impl Default for Board {
-    fn default() -> Self {
-        Self {
-            dimension: Default::default(),
-            tanks: vec![
-                Tank{
-                    color: GameColors::RED,
-                    point: BoardPoint { x: 18, y: 10 },
-                    ..Default::default()
-                },
-                Tank{
-                    color: GameColors::BLUE,
-                    point: BoardPoint { x: 2, y: 10 },
-                    strategy: Box::new(Dummy::dummy2()),
-                    ..Default::default()
-                }],
-            laser: Default::default(),
-            hit: Default::default(),
-        }
-    }
-}
-
 #[derive(Default, Debug)]
 struct Hit {
     point: BoardPoint,
@@ -294,6 +331,8 @@ struct Hit {
 struct Laser {
     point: BoardPoint,
     direction: Direction,
+    length: usize,
+    hit: bool,
     is_visible: bool,
 }
 
@@ -353,7 +392,7 @@ impl Default for Dimension {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 struct BoardPoint {
     x: isize,
     y: isize,
@@ -376,7 +415,7 @@ impl BoardPoint {
         }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 enum Direction {
     North,
     East,
@@ -463,7 +502,7 @@ struct NextMoveInput {
 trait Strategy {
     fn name(&self) -> String;
     fn author(&self) -> String;
-    fn next_move(&mut self, input: NextMoveInput) -> &Move;
+    fn next_move(&mut self, input: NextMoveInput) -> Move;
 }
 
 #[derive(Debug, Clone)]
@@ -505,10 +544,10 @@ impl Strategy for Dummy {
         self.name.clone()
     }
 
-    fn next_move(&mut self, input: NextMoveInput) -> &Move {
+    fn next_move(&mut self, input: NextMoveInput) -> Move {
         let next_move = self.moves.get(self.move_index).unwrap();
         self.move_index = (self.move_index + 1) % self.moves.len();
-        next_move
+        next_move.clone()
     }
 }
 
