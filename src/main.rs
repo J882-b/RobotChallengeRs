@@ -85,9 +85,12 @@ impl Application for RobotChallenge {
                     // TODO Next move input.
                     let next_move = tank.strategy.next_move(Default::default());
                     if *next_move == Move::TurnLeft {
-                            tank.direction = tank.direction.counter_clockwise();
+                        tank.direction = tank.direction.counter_clockwise();
                     } else if *next_move == Move::TurnRight {
-                            tank.direction = tank.direction.clockwise();
+                        tank.direction = tank.direction.clockwise();
+                    } else if *next_move == Move::Forward {
+                        let direction = tank.direction.clone();
+                        tank.point = tank.point.with_offset(direction, 1);
                     }
                     println!("{:?}", next_move);
                     self.board_cache.clear();  // Trigger draw on canvas.
