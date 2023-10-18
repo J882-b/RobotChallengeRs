@@ -36,6 +36,25 @@ impl RobotChallenge {
     fn get_tank_mut(&mut self, point: &BoardPoint) -> &mut Tank{
         self.tanks.iter_mut().find(|tank| tank.point == *point).unwrap()
     }
+
+    fn next_move_input(&self, current_index: usize) -> NextMoveInput {
+        let mut next_move_input = NextMoveInput::default();
+        next_move_input.game_board = self.dimension.clone();
+        for index in 0..self.tanks.len() {
+            let tank = self.tanks.get(index).unwrap();
+            let tank_status = TankStatus {
+                direction: tank.direction.clone(),
+                location: tank.point.clone(),
+                is_alive: tank.energy > 0,
+            };
+            if index == current_index {
+                next_move_input.own_status = tank_status
+            } else {
+                next_move_input.opponent_status.push(tank_status);
+            }
+        }
+        next_move_input
+    }
 }
 
 impl RobotChallenge {
@@ -92,7 +111,6 @@ impl Application for RobotChallenge {
         match message {
             Message::NewGame(_) => {
                 println!("NewGame");
-                // TODO: Setup a new game.
                 Command::perform(Sleeper::sleep(Duration::from_millis(100)), Message::NewRound)
             }
             Message::NewRound(_) => {
@@ -125,9 +143,10 @@ impl Application for RobotChallenge {
                     let tank = self.tanks.get(index).unwrap();
                     // If energy == 0 just wait.
                     if tank.energy > 0 {
-                        let tank = self.tanks.get_mut(index).unwrap();
+                        let next_move_input = self.next_move_input(index);
                         println!("{:?}", tank);
-                        next_move = tank.strategy.next_move(Default::default());
+                        let tank = self.tanks.get_mut(index).unwrap();
+                        next_move = tank.strategy.next_move(next_move_input);
                         println!("{:?}", next_move);
                     }
                     if next_move == Move::TurnLeft {
