@@ -8,6 +8,8 @@ use std::fmt::{Debug, Formatter};
 use std::time::Duration;
 use iced::widget::canvas::path::lyon_path::geom::Angle;
 use iced::widget::canvas::path::lyon_path::geom::euclid::Transform2D;
+use rand::distributions::{Distribution, Standard};
+use rand::Rng;
 use rand::seq::SliceRandom;
 
 fn main() -> iced::Result {
@@ -80,22 +82,46 @@ impl Application for RobotChallenge {
 
     fn new(_flags: ()) -> (Self, Command<Message>) {
         (
+            // TODO: Generate tanks from strategies, colors and board points.
+
+            // TODO: Random for available board point.
+
             Self {
                 round: 0,
                 next_tank_index: vec![],
                 board_cache : Default::default(),
                 dimension: Default::default(),
                 tanks: vec![
-                    Tank{
+                    Tank {
                         color: GameColors::RED,
                         point: BoardPoint { x: 6, y: 10 },
+                        strategy: Box::new(Dummy::default()),
                         ..Default::default()
                     },
-                    Tank{
+                    Tank {
                         color: GameColors::BLUE,
                         point: BoardPoint { x: 2, y: 10 },
                         strategy: Box::new(Dummy::dummy2()),
                         ..Default::default()
+                    },
+                    Tank{
+                        color: GameColors::GREEN,
+                        point: BoardPoint{x: 12, y: 12},
+                        strategy: Box::new(Random::default()),
+                        ..Default::default()
+                    },
+                    Tank{
+                        color: GameColors::YELLOW,
+                        point: BoardPoint{x: 4, y: 14},
+                        strategy: Box::new(Random::random2()),
+                        ..Default::default()
+                    },
+                    Tank {
+                        color: GameColors::PERU,
+                        point: BoardPoint{x: 14, y: 5},
+                        strategy: Box::new(Slacker::default()),
+                        ..Default::default()
+
                     }],
                 laser: Default::default(),
                 hit: Default::default(),
@@ -167,7 +193,8 @@ impl Application for RobotChallenge {
                         let tank = self.tanks.get(index).unwrap();
                         let new_point = tank.point.with_offset(tank.direction, 1);
                         let is_valid_point = self.is_valid_point(&new_point);
-                        if is_valid_point {
+                        let is_tank = self.is_tank(&new_point);
+                        if is_valid_point && !is_tank {
                             let tank = self.tanks.get_mut(index).unwrap();
                             tank.point = new_point;
                         }
@@ -441,6 +468,47 @@ impl GameColors {
         b: 1.0,
         a: 1.0,
     };
+
+    //#FF6347
+    const TOMATO: Color = Color {
+        r: 1.0,
+        g: 0.387,
+        b: 0.277,
+        a: 1.0,
+    };
+
+    // #FFFF00
+    const YELLOW: Color = Color {
+        r: 1.0,
+        g: 1.0,
+        b: 0.0,
+        a: 1.0,
+    };
+
+    // #CD853F
+    const PERU: Color = Color {
+        r: 0.804,
+        g: 0.519,
+        b: 0.247,
+        a: 1.0,
+    };
+
+    // #00FFFF
+    const AQUA: Color = Color {
+        r: 0.0,
+        g: 1.,
+        b: 1.0,
+        a: 1.0,
+    };
+
+    // #FFD700
+    const GOLD: Color = Color {
+        r: 1.0,
+        g: 0.84,
+        b: 1.0,
+        a: 1.0,
+    };
+
 }
 
 // Tank Path in the shape of an arrow.
@@ -492,7 +560,7 @@ impl Debug for Tank {
 impl Default for Tank {
     fn default() -> Self {
         Self {
-            strategy: Box::new(Dummy::default()),
+            strategy: Box::new(Random::default()),
             color: GameColors::GREEN,
             energy: Self::MAX_ENERGY,
             hits: 0,
@@ -515,6 +583,18 @@ enum Move {
     Forward,
     TurnRight,
     Wait,
+}
+
+impl Distribution<Move> for Standard {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Move {
+        match rng.gen_range(0..=2) {
+            0 => Move::Fire,
+            1 => Move::TurnLeft,
+            2 => Move::Forward,
+            3 => Move::TurnRight,
+            _ => Move::Wait,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -685,6 +765,71 @@ impl Strategy for Dummy {
         let next_move = self.moves.get(self.move_index).unwrap();
         self.move_index = (self.move_index + 1) % self.moves.len();
         next_move.clone()
+    }
+}
+
+struct Random {
+    name: String,
+    author: String,
+}
+
+impl Default for Random {
+    fn default() -> Self {
+        Self {
+            name: "Random".to_string(),
+            author: "Martin".to_string(),
+        }
+    }
+}
+
+impl Random {
+    fn random2() -> Self {
+        Self {
+            name: "Random2".to_string(),
+            author: "Martin".to_string(),
+        }
+    }
+}
+
+impl Strategy for Random {
+    fn name(&self) -> String {
+        self.name.clone()
+    }
+
+    fn author(&self) -> String {
+        self.author.clone()
+    }
+
+    fn next_move(&mut self, input: NextMoveInput) -> Move {
+        rand::random()
+    }
+}
+
+struct Slacker {
+    name: String,
+    author: String,
+}
+
+impl Default for Slacker {
+    fn default() -> Self {
+        Self {
+            name: "Eric Idle".to_string(),
+            author: "Martin".to_string(),
+        }
+    }
+}
+
+impl Strategy for Slacker {
+    fn name(&self) -> String {
+        self.name.clone()
+    }
+
+    fn author(&self) -> String {
+        self.author.clone()
+    }
+
+    fn next_move(&mut self, input: NextMoveInput) -> Move {
+        Move::Wait
     }
 }
 
