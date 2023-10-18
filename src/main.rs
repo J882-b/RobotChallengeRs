@@ -122,6 +122,13 @@ impl Application for RobotChallenge {
                         strategy: Box::new(Slacker::default()),
                         ..Default::default()
 
+                    },
+                    Tank {
+                        color: GameColors::TOMATO,
+                        point: BoardPoint{x: 10, y: 5},
+                        strategy: Box::new(Spinner::default()),
+                        ..Default::default()
+
                     }],
                 laser: Default::default(),
                 hit: Default::default(),
@@ -832,4 +839,37 @@ impl Strategy for Slacker {
         Move::Wait
     }
 }
+
+struct Spinner {
+    name: String,
+    author: String,
+    shoot: bool,
+
+}
+
+impl Default for Spinner {
+    fn default() -> Self {
+        Self {
+            name: "Spinner".to_string(),
+            author: "Martin".to_string(),
+            shoot: true,
+        }
+    }
+}
+
+impl Strategy for Spinner {
+    fn name(&self) -> String {
+        self.name.clone()
+    }
+
+    fn author(&self) -> String {
+        self.author.clone()
+    }
+
+    fn next_move(&mut self, input: NextMoveInput) -> Move {
+        self.shoot = !self.shoot;
+        if self.shoot { Move::Fire } else { Move::TurnRight }
+    }
+}
+
 
