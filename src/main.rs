@@ -32,10 +32,14 @@ impl RobotChallenge {
     fn is_tank(&self, point: &BoardPoint) -> bool {
         self.tanks.iter().any(|tank| tank.point == *point)
     }
+
+    fn get_tank_mut(&mut self, point: &BoardPoint) -> &mut Tank{
+        self.tanks.iter_mut().find(|tank| tank.point == *point).unwrap()
+    }
 }
 
 impl RobotChallenge {
-    const MAX_ROUNDS: usize = 20;
+    const MAX_ROUNDS: usize = 100;
 }
 
 #[derive(Debug, Clone)]
@@ -45,6 +49,7 @@ enum Message {
     Move(Result<String, SleeperError>),
     Laser(Result<String, SleeperError>),
     Hit(Result<String, SleeperError>),
+    EndGame(Result<String, SleeperError>)
 }
 
 impl Application for RobotChallenge {
@@ -98,9 +103,16 @@ impl Application for RobotChallenge {
                 } else {
                     // TODO: Randomize next tank index
                     for index in 0..self.tanks.len() {
-                        self.next_tank_index.push(index);
+                        let tank = self.tanks.get(index).unwrap();
+                        if tank.energy > 0 {
+                            self.next_tank_index.push(index);
+                        }
                     }
-                    Command::perform(Sleeper::sleep(Duration::from_millis(100)), Message::Move)
+                    if self.next_tank_index.len() > 1 {
+                        Command::perform(Sleeper::sleep(Duration::from_millis(100)), Message::Move)
+                    } else {
+                        Command::perform(Sleeper::sleep(Duration::from_millis(100)), Message::EndGame)
+                    }
                 }
             }
             Message::Move(_) => {
@@ -108,9 +120,11 @@ impl Application for RobotChallenge {
                     Command::perform(Sleeper::sleep(Duration::from_millis(100)), Message::NewRound)
                 } else {
                     let index = self.next_tank_index.pop().unwrap();
-                    // TODO: If energy == 0 take another tank.
+
                     let mut next_move = Move::Wait;
-                    {
+                    let tank = self.tanks.get(index).unwrap();
+                    // If energy == 0 just wait.
+                    if tank.energy > 0 {
                         let tank = self.tanks.get_mut(index).unwrap();
                         println!("{:?}", tank);
                         next_move = tank.strategy.next_move(Default::default());
@@ -146,8 +160,19 @@ impl Application for RobotChallenge {
                             } else if self.is_tank(&fire_point) {
                                 self.laser.hit = true;
                                 self.laser.length = i - 1;
-                                self.hit.point = fire_point;
-                                // TODO: Update tank energy, hits, frags.
+                                self.hit.point = fire_point.clone();
+                                // Update tank energy, hits, frags.
+                                let hit_tank = self.get_tank_mut(&fire_point);
+                                let mut frag = false;
+                                if hit_tank.energy > 0 {
+                                    hit_tank.energy -= 1;
+                                    if hit_tank.energy == 0 {
+                                        frag = true;
+                                    }
+                                }
+                                let tank = self.tanks.get_mut(index).unwrap();
+                                tank.hits += 1;
+                                tank.frags += if frag { 1 } else { 0 };
                                 break;
                             }
                         }
@@ -181,6 +206,13 @@ impl Application for RobotChallenge {
                 self.hit = Default::default();
                 self.board_cache.clear();  // Trigger draw on canvas.
                 Command::perform(Sleeper::sleep(Duration::from_millis(100)), Message::Move)
+            }
+            Message::EndGame(_) => {
+                println!("EndGame");
+                let index = self.next_tank_index.pop().unwrap();
+                let tank = self.tanks.get_mut(index).unwrap();
+                println!("The winner is {} by {}", tank.strategy.name(), tank.strategy.author());
+                Command::none()
             }
         }
     }
@@ -603,7 +635,7 @@ impl Strategy for Dummy {
     }
 
     fn author(&self) -> String {
-        self.name.clone()
+        self.author.clone()
     }
 
     fn next_move(&mut self, input: NextMoveInput) -> Move {
