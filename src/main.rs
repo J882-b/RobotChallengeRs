@@ -297,7 +297,23 @@ impl<Message> canvas::Program<Message, Renderer> for RobotChallenge {
                     frame.translate(Vector::new(x, y));
                     frame.fill( &restore_path, tank.color);
 
-                    // TODO: Draw dead tank. A X over a tank if dead.
+                    // Draw dead tank. A X over a tank if dead.
+                    if tank.energy == 0 {
+                        let dead_path1 = Path::line(Point::new(4.0, 4.0), Point::new(16.0, 16.0));
+                        let dead_path2 = Path::line(Point::new(16.0, 4.0), Point::new(4.0, 16.0));
+
+                        let dead_stroke = || -> Stroke {
+                            Stroke {
+                                width: 2.0,
+                                style: stroke::Style::Solid(Color::BLACK),
+                                line_cap: LineCap::Round,
+                                ..Stroke::default()
+                            }
+                        };
+
+                        frame.stroke(&dead_path1, dead_stroke());
+                        frame.stroke(&dead_path2, dead_stroke());
+                    }
                 });
             }
 
