@@ -8,6 +8,7 @@ use std::fmt::{Debug, Formatter};
 use std::time::Duration;
 use iced::widget::canvas::path::lyon_path::geom::Angle;
 use iced::widget::canvas::path::lyon_path::geom::euclid::Transform2D;
+use rand::seq::SliceRandom;
 
 fn main() -> iced::Result {
     RobotChallenge::run(Settings::default())
@@ -119,11 +120,18 @@ impl Application for RobotChallenge {
                 if self.round >= RobotChallenge::MAX_ROUNDS {
                     Command::none()
                 } else {
-                    // TODO: Randomize next tank index
-                    for index in 0..self.tanks.len() {
+                    // Randomize next tank index
+                    let mut indexes: Vec<usize> = (0..self.tanks.len()).collect();
+                    println!("Un-shuffled indexes: {:?}", indexes);
+                    let mut rng = rand::thread_rng();
+                    indexes.shuffle(&mut rng);
+                    println!("Shuffled indexes: {:?}", indexes);
+
+                    for index in indexes {
                         let tank = self.tanks.get(index).unwrap();
+                        // Only tanks with energy can move.
                         if tank.energy > 0 {
-                            self.next_tank_index.push(index);
+                            self.next_tank_index.push(index as usize);
                         }
                     }
                     if self.next_tank_index.len() > 1 {

@@ -7,4 +7,5 @@ edition = "2021"
 
 [dependencies]
 iced = { version = "0.10", features = ["canvas"] }
+rand = "0.8.5"
 
