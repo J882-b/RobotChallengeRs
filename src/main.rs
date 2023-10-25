@@ -264,10 +264,10 @@ impl Application for RobotChallenge {
                                     if hit_tank.energy == 0 {
                                         frag = true;
                                     }
+                                    let tank = self.tanks.get_mut(index).unwrap();
+                                    tank.hits += 1;
+                                    tank.frags += if frag { 1 } else { 0 };
                                 }
-                                let tank = self.tanks.get_mut(index).unwrap();
-                                tank.hits += 1;
-                                tank.frags += if frag { 1 } else { 0 };
                                 break;
                             }
                         }
