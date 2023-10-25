@@ -1823,6 +1823,7 @@ name = "robot_challenge_rust"
 version = "0.1.0"
 dependencies = [
  "iced",
+ "iced_core",
  "rand",
 ]
 

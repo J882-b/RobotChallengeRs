@@ -2,7 +2,7 @@
 
 use iced::{alignment, Application, Color, Command, Element, executor, Length, mouse, Point, Rectangle, Renderer, Settings, Theme, Vector};
 use iced::widget::canvas::{Geometry, Cache, Path, path, Stroke, stroke, LineCap};
-use iced::widget::{canvas, Canvas, column, container, scrollable, text};
+use iced::widget::{canvas, Canvas, column, container, row, Row, text, Column, scrollable};
 use std::default::Default;
 use std::fmt::{Debug, Formatter};
 use std::time::Duration;
@@ -58,6 +58,40 @@ impl RobotChallenge {
         }
         next_move_input
     }
+
+    fn score_row<'a,Message, Renderer>(name: String, name_color: Color, energy: String, hits: String, frags: String)
+        -> Row<'a, Message, Renderer>
+        where
+            Renderer: iced_core::text::Renderer + 'a,
+            Renderer::Theme: text::StyleSheet,
+            <<Renderer as iced_core::Renderer>::Theme as text::StyleSheet>::Style: From<Color>
+    {
+        let score_name = text(name)
+            .width(200)
+            .size(15)
+            .style(name_color)
+            .horizontal_alignment(alignment::Horizontal::Center);
+
+        let score_energy = text(energy)
+            .width(50)
+            .size(15)
+            .style(Color::BLACK)
+            .horizontal_alignment(alignment::Horizontal::Center);
+
+        let score_hits = text(hits)
+            .width(50)
+            .size(15)
+            .style(Color::BLACK)
+            .horizontal_alignment(alignment::Horizontal::Center);
+
+        let score_frags = text(frags)
+            .width(50)
+            .size(15)
+            .style(Color::BLACK)
+            .horizontal_alignment(alignment::Horizontal::Center);
+
+        row![score_name, score_energy, score_hits, score_frags]
+    }
 }
 
 impl RobotChallenge {
@@ -111,7 +145,7 @@ impl Application for RobotChallenge {
                         ..Default::default()
                     },
                     Tank{
-                        color: GameColors::YELLOW,
+                        color: GameColors::AQUA,
                         point: BoardPoint{x: 4, y: 14},
                         strategy: Box::new(Random::random2()),
                         ..Default::default()
@@ -279,27 +313,39 @@ impl Application for RobotChallenge {
     }
 
     fn view(&self) -> Element<Message> {
-        let game_title = text("Game area")
-            .width(Length::Fill)
-            .size(30)
-            .style(Color::from([0.5, 0.5, 0.5]))
-            .horizontal_alignment(alignment::Horizontal::Center);
 
         let game_board : Canvas<&RobotChallenge, Message> = canvas(self as &Self)
             .width(400)
             .height(400);
 
-        let score_title = text("Score area")
-            .width(Length::Fill)
-            .size(30)
-            .style(Color::from([0.5, 0.5, 0.5]))
-            .horizontal_alignment(alignment::Horizontal::Center);
+        let score_row_headers = RobotChallenge::score_row(
+            "Name".to_string(),
+            Color::BLACK,
+            "Energy".to_string(),
+            "Hits".to_string(),
+            "Frags".to_string());
 
-        // TODO: Score listing
+        let score_rows = self.tanks.iter().map(|tank|
+            RobotChallenge::score_row::<Message, Renderer>(
+                tank.strategy.name().clone(),
+                tank.color.clone(),
+                tank.energy.to_string().clone(),
+                tank.hits.to_string().clone(),
+                tank.frags.to_string().clone()
 
-        let content = column![game_title, game_board, score_title]
+            )
+        ).collect::<Vec<_>>();
+
+        let mut elements: Vec<Element<Message>> = vec!();
+        elements.push(Element::from(game_board));
+        elements.push(Element::from(score_row_headers));
+        for row in score_rows {
+            elements.push(Element::from(row));
+        }
+
+        let content = Column::with_children(elements)
             .spacing(20);
-
+        
         scrollable(
             container(content)
                 .width(Length::Fill)
@@ -481,14 +527,6 @@ impl GameColors {
         r: 1.0,
         g: 0.387,
         b: 0.277,
-        a: 1.0,
-    };
-
-    // #FFFF00
-    const YELLOW: Color = Color {
-        r: 1.0,
-        g: 1.0,
-        b: 0.0,
         a: 1.0,
     };
 
