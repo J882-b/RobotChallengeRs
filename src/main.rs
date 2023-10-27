@@ -1,5 +1,4 @@
-
-
+use std::collections::VecDeque;
 use iced::{alignment, Application, Color, Command, Element, executor, Length, mouse, Point, Rectangle, Renderer, Settings, Theme, Vector};
 use iced::widget::canvas::{Geometry, Cache, Path, path, Stroke, stroke, LineCap};
 use iced::widget::{canvas, Canvas, column, container, row, Row, text, Column, scrollable};
@@ -166,7 +165,7 @@ impl Application for RobotChallenge {
 
                     },
                     Tank {
-                        color: GameColors::GOLD,
+                        color: GameColors::PINK,
                         point: BoardPoint {x: 19, y: 19},
                         strategy: Box::new(FireFire::default()),
                         ..Default::default()
@@ -196,10 +195,8 @@ impl Application for RobotChallenge {
                 } else {
                     // Randomize next tank index
                     let mut indexes: Vec<usize> = (0..self.tanks.len()).collect();
-                    println!("Un-shuffled indexes: {:?}", indexes);
                     let mut rng = rand::thread_rng();
                     indexes.shuffle(&mut rng);
-                    println!("Shuffled indexes: {:?}", indexes);
 
                     for index in indexes {
                         let tank = self.tanks.get(index).unwrap();
@@ -554,7 +551,7 @@ impl GameColors {
     };
 
     // #FFD700
-    const GOLD: Color = Color {
+    const PINK: Color = Color {
         r: 1.0,
         g: 0.84,
         b: 1.0,
@@ -942,11 +939,10 @@ impl Strategy for FireFire {
     }
 
     fn next_move(&mut self, input: NextMoveInput) -> Move {
-        //TODO:
         let my_position = Position {
             point: input.own_status.location,
             direction: input.own_status.direction,
-            moves: Vec::new(),
+            moves: VecDeque::new(),
         };
 
         let mut alive_positions = Vec::new();
@@ -973,19 +969,22 @@ impl Strategy for FireFire {
 impl FireFire {
     fn find_move_to_closest_fire(&self, root: Position, search: Vec<Position>, mut visited: Vec<Position>,
                                  fire_range: usize, dead_positions: Vec<Position>, width: usize, height: usize) -> Move {
-        let mut queue: Vec<Position> = vec![root];
+        let mut queue = VecDeque::new();
+        queue.push_back(root);
         while queue.len() > 0 {
-            let mut current_position = queue.pop().unwrap();
+            let mut current_position = queue.pop_front().unwrap();
             visited.push(current_position.clone());
             if current_position.is_fire_position(&search, fire_range, &dead_positions) {
-                return current_position.moves.last().unwrap().clone();
+                println!("visited.len(): {}", visited.len());
+                current_position.moves.push_back(Move::Fire);
+                return current_position.moves.pop_front().unwrap().clone();
             } else {
                 let new_positions = vec![ current_position.drive(),
                     current_position.clockwise(), current_position.counter_clockwise()];
 
                 for position in new_positions {
                     if position.is_valid(width, height) && !visited.contains(&position) {
-                        queue.push(position);
+                        queue.push_back(position);
                     }
                 }
             }
@@ -998,7 +997,7 @@ impl FireFire {
 struct Position {
     point: BoardPoint,
     direction: Direction,
-    moves: Vec<Move>,
+    moves: VecDeque<Move>,
 }
 
 impl Default for Position {
@@ -1006,7 +1005,7 @@ impl Default for Position {
         Self {
             point: BoardPoint::default(),
             direction: Direction::default(),
-            moves: Vec::new(),
+            moves: VecDeque::new(),
         }
     }
 }
@@ -1022,7 +1021,7 @@ impl Position {
         Self {
             point,
             direction,
-            moves: Vec::new(),
+            moves: VecDeque::new(),
         }
     }
     fn all(point: BoardPoint) -> Vec<Self> {
@@ -1038,7 +1037,7 @@ impl Position {
         let mut positions = Vec::new();
         let mut test_in_dead_position = false;
         for i in 1..fire_range {
-            let test = Position::new(self.point.with_offset(self.direction, 1), self.direction);
+            let test = Position::new(self.point.with_offset(self.direction, i as isize), self.direction);
             test_in_dead_position = false;
             for position in dead_positions {
                 if *position == test {
@@ -1068,7 +1067,7 @@ impl Position {
 
     fn drive(&self) -> Position {
         let mut moves = self.moves.clone();
-        moves.push(Move::Forward);
+        moves.push_back(Move::Forward);
         Self {
             point: self.point.with_offset(self.direction, 1),
             direction: self.direction,
@@ -1078,7 +1077,7 @@ impl Position {
 
     fn clockwise(&self) -> Position {
         let mut moves = self.moves.clone();
-        moves.push(Move::TurnRight);
+        moves.push_back(Move::TurnRight);
         Self {
             point: self.point.clone(),
             direction: self.direction.clockwise(),
@@ -1088,7 +1087,7 @@ impl Position {
 
     fn counter_clockwise(&self) -> Position {
         let mut moves = self.moves.clone();
-        moves.push(Move::TurnLeft);
+        moves.push_back(Move::TurnLeft);
         Self {
             point: self.point.clone(),
             direction: self.direction.counter_clockwise(),
