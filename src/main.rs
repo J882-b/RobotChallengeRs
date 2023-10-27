@@ -43,6 +43,7 @@ impl RobotChallenge {
     fn next_move_input(&self, current_index: usize) -> NextMoveInput {
         let mut next_move_input = NextMoveInput::default();
         next_move_input.game_board = self.dimension.clone();
+        next_move_input.fire_range = Tank::FIRE_RANGE;
         for index in 0..self.tanks.len() {
             let tank = self.tanks.get(index).unwrap();
             let tank_status = TankStatus {
@@ -163,6 +164,12 @@ impl Application for RobotChallenge {
                         strategy: Box::new(Spinner::default()),
                         ..Default::default()
 
+                    },
+                    Tank {
+                        color: GameColors::GOLD,
+                        point: BoardPoint {x: 19, y: 19},
+                        strategy: Box::new(FireFire::default()),
+                        ..Default::default()
                     }],
                 laser: Default::default(),
                 hit: Default::default(),
@@ -677,7 +684,7 @@ impl BoardPoint {
         }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 enum Direction {
     North,
     East,
@@ -759,6 +766,7 @@ struct NextMoveInput {
     game_board: Dimension,
     own_status: TankStatus,
     opponent_status: Vec<TankStatus>,
+    fire_range: usize,
 }
 
 trait Strategy {
@@ -907,6 +915,190 @@ impl Strategy for Spinner {
     fn next_move(&mut self, input: NextMoveInput) -> Move {
         self.shoot = !self.shoot;
         if self.shoot { Move::Fire } else { Move::TurnRight }
+    }
+}
+
+struct FireFire {
+    name: String,
+    author: String,
+}
+
+impl Default for FireFire {
+    fn default() -> Self {
+        Self {
+            name: "FireFire".to_string(),
+            author: "Johan".to_string(),
+        }
+    }
+}
+
+impl Strategy for FireFire {
+    fn name(&self) -> String {
+        self.name.clone()
+    }
+
+    fn author(&self) -> String {
+        self.author.clone()
+    }
+
+    fn next_move(&mut self, input: NextMoveInput) -> Move {
+        //TODO:
+        let my_position = Position {
+            point: input.own_status.location,
+            direction: input.own_status.direction,
+            moves: Vec::new(),
+        };
+
+        let mut alive_positions = Vec::new();
+        let mut dead_positions = Vec::new();
+        for other in input.opponent_status {
+            let mut positions = Position::all(other.location);
+            if other.is_alive {
+                alive_positions.append(&mut positions);
+            } else {
+                dead_positions.append(&mut positions);
+            }
+        }
+
+        let mut visited = Vec::new();
+        visited.append(&mut alive_positions.clone());
+        visited.append(&mut dead_positions.clone());
+
+        self.find_move_to_closest_fire(my_position, alive_positions, visited,
+                                       input.fire_range, dead_positions,
+                                       input.game_board.width, input.game_board.height )
+    }
+}
+
+impl FireFire {
+    fn find_move_to_closest_fire(&self, root: Position, search: Vec<Position>, mut visited: Vec<Position>,
+                                 fire_range: usize, dead_positions: Vec<Position>, width: usize, height: usize) -> Move {
+        let mut queue: Vec<Position> = vec![root];
+        while queue.len() > 0 {
+            let mut current_position = queue.pop().unwrap();
+            visited.push(current_position.clone());
+            if current_position.is_fire_position(&search, fire_range, &dead_positions) {
+                return current_position.moves.last().unwrap().clone();
+            } else {
+                let new_positions = vec![ current_position.drive(),
+                    current_position.clockwise(), current_position.counter_clockwise()];
+
+                for position in new_positions {
+                    if position.is_valid(width, height) && !visited.contains(&position) {
+                        queue.push(position);
+                    }
+                }
+            }
+        }
+        Move::Forward
+    }
+}
+
+#[derive(Debug, Clone)]
+struct Position {
+    point: BoardPoint,
+    direction: Direction,
+    moves: Vec<Move>,
+}
+
+impl Default for Position {
+    fn default() -> Self {
+        Self {
+            point: BoardPoint::default(),
+            direction: Direction::default(),
+            moves: Vec::new(),
+        }
+    }
+}
+
+impl PartialEq for Position {
+    fn eq(&self, other: &Self) -> bool {
+        self.point == other.point && self.direction == other.direction
+    }
+}
+
+impl Position {
+    fn new(point: BoardPoint, direction: Direction) -> Self {
+        Self {
+            point,
+            direction,
+            moves: Vec::new(),
+        }
+    }
+    fn all(point: BoardPoint) -> Vec<Self> {
+         vec![
+            Position::new(point.clone(), Direction::North),
+            Position::new(point.clone(), Direction::East),
+            Position::new(point.clone(), Direction::South),
+            Position::new(point.clone(), Direction::West),
+        ]
+    }
+
+    fn fire(&self, fire_range: usize, dead_positions: &Vec<Position>) -> Vec<Position> {
+        let mut positions = Vec::new();
+        let mut test_in_dead_position = false;
+        for i in 1..fire_range {
+            let test = Position::new(self.point.with_offset(self.direction, 1), self.direction);
+            test_in_dead_position = false;
+            for position in dead_positions {
+                if *position == test {
+                    test_in_dead_position = true;
+                }
+            }
+            // TODO: Refactor and break to outer.
+            if test_in_dead_position {
+                break;
+            } else {
+                positions.push(test);
+            }
+        }
+        positions
+    }
+    fn is_fire_position(&self, search: &Vec<Position>, fire_range: usize, dead_positions: &Vec<Position>) -> bool {
+        let possible = self.fire(fire_range, dead_positions);
+        for possible_position in possible {
+            for searched_position in search {
+                if possible_position == *searched_position {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    fn drive(&self) -> Position {
+        let mut moves = self.moves.clone();
+        moves.push(Move::Forward);
+        Self {
+            point: self.point.with_offset(self.direction, 1),
+            direction: self.direction,
+            moves,
+        }
+    }
+
+    fn clockwise(&self) -> Position {
+        let mut moves = self.moves.clone();
+        moves.push(Move::TurnRight);
+        Self {
+            point: self.point.clone(),
+            direction: self.direction.clockwise(),
+            moves,
+        }
+    }
+
+    fn counter_clockwise(&self) -> Position {
+        let mut moves = self.moves.clone();
+        moves.push(Move::TurnLeft);
+        Self {
+            point: self.point.clone(),
+            direction: self.direction.counter_clockwise(),
+            moves,
+        }
+    }
+
+    fn is_valid(&self, width: usize, height: usize) -> bool {
+        0 <= self.point.x && self.point.x < width as isize
+            && 0 <= self.point.y && self.point.y < height as isize
     }
 }
 
