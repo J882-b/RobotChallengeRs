@@ -387,7 +387,7 @@ impl Application for RobotChallenge {
         }
 
         let content = Column::with_children(elements)
-            .spacing(20);
+            .spacing(5);
 
         scrollable(
             container(content)
