@@ -115,6 +115,74 @@ impl RobotChallenge {
         }).collect()
     }
 
+    fn get_next_move(&mut self, index: usize) -> Move {
+        let mut next_move = Move::Wait;
+        let tank = self.tanks.get(index).unwrap();
+        if tank.is_alive() {
+            let next_move_input = self.next_move_input(index);
+            println!("{:?}", tank);
+            let tank = self.tanks.get_mut(index).unwrap();
+            next_move = tank.strategy.next_move(next_move_input);
+            println!("{:?}", next_move);
+        }
+        next_move
+    }
+
+    fn move_turn_left(&mut self, index: usize) {
+        let tank = self.tanks.get_mut(index).unwrap();
+        tank.direction = tank.direction.counter_clockwise();
+    }
+
+    fn move_turn_right(&mut self, index: usize) {
+        let tank = self.tanks.get_mut(index).unwrap();
+        tank.direction = tank.direction.clockwise();
+    }
+
+    fn move_forward(&mut self, index: usize) {
+        let tank = self.tanks.get(index).unwrap();
+        let new_point = tank.point.with_offset(tank.direction, 1);
+        let is_valid_point = self.is_valid_point(&new_point);
+        let is_tank = self.is_tank(&new_point);
+        if is_valid_point && !is_tank {
+            let tank = self.tanks.get_mut(index).unwrap();
+            tank.point = new_point;
+        }
+    }
+
+    fn move_fire(&mut self, index: usize) {
+        let tank = self.tanks.get(index).unwrap();
+        self.laser.point = tank.point.clone();
+        self.laser.direction = tank.direction.clone();
+        self.laser.length = Tank::FIRE_RANGE;
+        self.laser.is_visible = true;
+        // Change laser length if there is a tank or board edge.
+        let fire_direction = self.laser.direction.clone();
+        for i in 1..=Tank::FIRE_RANGE {
+            let fire_point = self.laser.point.with_offset(fire_direction, i as isize);
+            if !self.is_valid_point(&fire_point) {
+                self.laser.length = i - 1;
+                break;
+            } else if self.is_tank(&fire_point) {
+                self.laser.hit = true;
+                self.laser.length = i - 1;
+                self.hit.point = fire_point.clone();
+                // Update tank energy, hits, frags.
+                let hit_tank = self.get_tank_mut(&fire_point);
+                let mut frag = false;
+                if hit_tank.energy > 0 {
+                    hit_tank.energy -= 1;
+                    if hit_tank.energy == 0 {
+                        frag = true;
+                    }
+                    let tank = self.tanks.get_mut(index).unwrap();
+                    tank.hits += 1;
+                    tank.frags += if frag { 1 } else { 0 };
+                }
+                break;
+            }
+        }
+    }
+
     fn score_row<'a, Message, Renderer>(name: String, name_color: Color, energy: String, hits: String, frags: String)
                                         -> Row<'a, Message, Renderer>
         where
@@ -261,64 +329,21 @@ impl Application for RobotChallenge {
                     Command::perform(Sleeper::sleep(Duration::from_millis(100)), Message::NewRound)
                 } else {
                     let index = self.next_tank_indexs.pop().unwrap();
-
-                    let mut next_move = Move::Wait;
-                    let tank = self.tanks.get(index).unwrap();
-                    // If energy == 0 just wait.
-                    if tank.energy > 0 {
-                        let next_move_input = self.next_move_input(index);
-                        println!("{:?}", tank);
-                        let tank = self.tanks.get_mut(index).unwrap();
-                        next_move = tank.strategy.next_move(next_move_input);
-                        println!("{:?}", next_move);
-                    }
-                    if next_move == Move::TurnLeft {
-                        let tank = self.tanks.get_mut(index).unwrap();
-                        tank.direction = tank.direction.counter_clockwise();
-                    } else if next_move == Move::TurnRight {
-                        let tank = self.tanks.get_mut(index).unwrap();
-                        tank.direction = tank.direction.clockwise();
-                    } else if next_move == Move::Forward {
-                        let tank = self.tanks.get(index).unwrap();
-                        let new_point = tank.point.with_offset(tank.direction, 1);
-                        let is_valid_point = self.is_valid_point(&new_point);
-                        let is_tank = self.is_tank(&new_point);
-                        if is_valid_point && !is_tank {
-                            let tank = self.tanks.get_mut(index).unwrap();
-                            tank.point = new_point;
+                    let next_move = self.get_next_move(index);
+                    match next_move {
+                        Move::TurnLeft => {
+                            self.move_turn_left(index);
                         }
-                    } else if next_move == Move::Fire {
-                        let tank = self.tanks.get(index).unwrap();
-                        self.laser.point = tank.point.clone();
-                        self.laser.direction = tank.direction.clone();
-                        self.laser.length = Tank::FIRE_RANGE;
-                        self.laser.is_visible = true;
-                        // Change laser length if there is a tank or board edge.
-                        let fire_direction = self.laser.direction.clone();
-                        for i in 1..=Tank::FIRE_RANGE {
-                            let fire_point = self.laser.point.with_offset(fire_direction, i as isize);
-                            if !self.is_valid_point(&fire_point) {
-                                self.laser.length = i - 1;
-                                break;
-                            } else if self.is_tank(&fire_point) {
-                                self.laser.hit = true;
-                                self.laser.length = i - 1;
-                                self.hit.point = fire_point.clone();
-                                // Update tank energy, hits, frags.
-                                let hit_tank = self.get_tank_mut(&fire_point);
-                                let mut frag = false;
-                                if hit_tank.energy > 0 {
-                                    hit_tank.energy -= 1;
-                                    if hit_tank.energy == 0 {
-                                        frag = true;
-                                    }
-                                    let tank = self.tanks.get_mut(index).unwrap();
-                                    tank.hits += 1;
-                                    tank.frags += if frag { 1 } else { 0 };
-                                }
-                                break;
-                            }
+                        Move::TurnRight => {
+                            self.move_turn_right(index);
                         }
+                        Move::Forward => {
+                            self.move_forward(index);
+                        }
+                        Move::Fire => {
+                            self.move_fire(index);
+                        }
+                        Move::Wait => {}
                     }
                     self.board_cache.clear();  // Trigger draw on canvas.
                     if Move::Fire == next_move {
@@ -641,6 +666,12 @@ impl Debug for Tank {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "Tank(strategy: {}, energy: {}, hits: {}, frags: {:?}, {:?}, direction: {:?}",
                self.strategy.name(), self.energy, self.hits, self.frags, self.point, self.direction)
+    }
+}
+
+impl Tank {
+    fn is_alive(&self) -> bool {
+        self.energy > 0
     }
 }
 
