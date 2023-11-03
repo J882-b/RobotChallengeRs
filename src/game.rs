@@ -60,7 +60,7 @@ use crate::strategies::{
 
 pub(crate) struct RobotChallenge {
     round: usize,
-    next_tank_index: Vec<usize>,
+    next_tank_indexs: Vec<usize>,
     board_cache: Cache,
     dimension: Dimension,
     tanks: Vec<Tank>,
@@ -100,6 +100,19 @@ impl RobotChallenge {
             }
         }
         next_move_input
+    }
+
+    fn gen_new_round_indexes(&self) -> Vec<usize> {
+        // Randomize next tank index
+        let mut indexes: Vec<usize> = (0..self.tanks.len()).collect();
+        let mut rng = rand::thread_rng();
+        indexes.shuffle(&mut rng);
+
+        indexes.into_iter().filter(|&index| {
+            let tank = self.tanks.get(index).unwrap();
+            // Only tanks with energy can move.
+            tank.energy > 0
+        }).collect()
     }
 
     fn score_row<'a, Message, Renderer>(name: String, name_color: Color, energy: String, hits: String, frags: String)
@@ -165,7 +178,7 @@ impl Application for RobotChallenge {
 
             Self {
                 round: 0,
-                next_tank_index: vec![],
+                next_tank_indexs: vec![],
                 board_cache: Default::default(),
                 dimension: Default::default(),
                 tanks: vec![
@@ -234,19 +247,9 @@ impl Application for RobotChallenge {
                 if self.round >= RobotChallenge::MAX_ROUNDS {
                     Command::none()
                 } else {
-                    // Randomize next tank index
-                    let mut indexes: Vec<usize> = (0..self.tanks.len()).collect();
-                    let mut rng = rand::thread_rng();
-                    indexes.shuffle(&mut rng);
+                    self.next_tank_indexs = self.gen_new_round_indexes();
 
-                    for index in indexes {
-                        let tank = self.tanks.get(index).unwrap();
-                        // Only tanks with energy can move.
-                        if tank.energy > 0 {
-                            self.next_tank_index.push(index as usize);
-                        }
-                    }
-                    if self.next_tank_index.len() > 1 {
+                    if self.next_tank_indexs.len() > 1 {
                         Command::perform(Sleeper::sleep(Duration::from_millis(100)), Message::Move)
                     } else {
                         Command::perform(Sleeper::sleep(Duration::from_millis(100)), Message::EndGame)
@@ -254,10 +257,10 @@ impl Application for RobotChallenge {
                 }
             }
             Message::Move(_) => {
-                if self.next_tank_index.is_empty() {
+                if self.next_tank_indexs.is_empty() {
                     Command::perform(Sleeper::sleep(Duration::from_millis(100)), Message::NewRound)
                 } else {
-                    let index = self.next_tank_index.pop().unwrap();
+                    let index = self.next_tank_indexs.pop().unwrap();
 
                     let mut next_move = Move::Wait;
                     let tank = self.tanks.get(index).unwrap();
@@ -349,7 +352,7 @@ impl Application for RobotChallenge {
             }
             Message::EndGame(_) => {
                 println!("EndGame");
-                let index = self.next_tank_index.pop().unwrap();
+                let index = self.next_tank_indexs.pop().unwrap();
                 let tank = self.tanks.get_mut(index).unwrap();
                 println!("The winner is {} by {}", tank.strategy.name(), tank.strategy.author());
                 Command::none()
@@ -636,7 +639,8 @@ struct Tank {
 
 impl Debug for Tank {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Tank(strategy: {}, energy: {}, hits: {}, frags: {:?}, {:?}, direction: {:?}", self.strategy.name(), self.energy, self.hits, self.frags, self.point, self.direction)
+        write!(f, "Tank(strategy: {}, energy: {}, hits: {}, frags: {:?}, {:?}, direction: {:?}",
+               self.strategy.name(), self.energy, self.hits, self.frags, self.point, self.direction)
     }
 }
 
@@ -670,7 +674,7 @@ pub(crate) enum Move {
 
 impl Distribution<Move> for Standard {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Move {
-        match rng.gen_range(0..=2) {
+        match rng.gen_range(0..=4) {
             0 => Move::Fire,
             1 => Move::TurnLeft,
             2 => Move::Forward,
