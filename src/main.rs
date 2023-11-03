@@ -1,13 +1,51 @@
 use std::collections::VecDeque;
-use iced::{alignment, Application, Color, Command, Element, executor, Length, mouse, Point, Rectangle, Renderer, Settings, Theme, Vector};
-use iced::widget::canvas::{Geometry, Cache, Path, path, Stroke, stroke, LineCap};
-use iced::widget::{canvas, Canvas, column, container, row, Row, text, Column, scrollable};
+use iced::{
+    alignment,
+    Application,
+    Color,
+    Command,
+    Element,
+    executor,
+    Length,
+    mouse,
+    Point,
+    Rectangle,
+    Renderer,
+    Settings,
+    Theme,
+    Vector
+};
+use iced::widget::canvas::{
+    Geometry,
+    Cache,
+    Path,
+    path,
+    Stroke,
+    stroke,
+    LineCap
+};
+use iced::widget::{
+    canvas,
+    Canvas,
+    container,
+    row,
+    Row,
+    text,
+    Column,
+    scrollable
+};
 use std::default::Default;
-use std::fmt::{Debug, Formatter};
+use std::fmt::{
+    Debug,
+    Formatter
+};
 use std::time::Duration;
 use iced::widget::canvas::path::lyon_path::geom::Angle;
 use iced::widget::canvas::path::lyon_path::geom::euclid::Transform2D;
-use rand::distributions::{Distribution, Standard};
+use rand::distributions::{
+    Distribution,
+    Standard
+};
 use rand::Rng;
 use rand::seq::SliceRandom;
 
