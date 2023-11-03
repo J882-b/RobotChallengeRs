@@ -47,7 +47,7 @@ impl Strategy for Dummy {
         self.author.clone()
     }
 
-    fn next_move(&mut self, input: NextMoveInput) -> Move {
+    fn next_move(&mut self, _input: NextMoveInput) -> Move {
         let next_move = self.moves.get(self.move_index).unwrap();
         self.move_index = (self.move_index + 1) % self.moves.len();
         next_move.clone()
@@ -86,7 +86,7 @@ impl Strategy for Random {
         self.author.clone()
     }
 
-    fn next_move(&mut self, input: NextMoveInput) -> Move {
+    fn next_move(&mut self, _input: NextMoveInput) -> Move {
         rand::random()
     }
 }
@@ -114,7 +114,7 @@ impl Strategy for Slacker {
         self.author.clone()
     }
 
-    fn next_move(&mut self, input: NextMoveInput) -> Move {
+    fn next_move(&mut self, _input: NextMoveInput) -> Move {
         Move::Wait
     }
 }
@@ -145,7 +145,7 @@ impl Strategy for Spinner {
         self.author.clone()
     }
 
-    fn next_move(&mut self, input: NextMoveInput) -> Move {
+    fn next_move(&mut self, _input: NextMoveInput) -> Move {
         self.shoot = !self.shoot;
         if self.shoot { Move::Fire } else { Move::TurnRight }
     }
@@ -271,16 +271,11 @@ impl Position {
 
     fn fire(&self, fire_range: usize, dead_positions: &Vec<Position>) -> Vec<Position> {
         let mut positions = Vec::new();
-        let mut test_in_dead_position = false;
         for i in 1..fire_range {
             let test = Position::new(self.point.with_offset(self.direction, i as isize), self.direction);
-            test_in_dead_position = false;
-            for position in dead_positions {
-                if *position == test {
-                    test_in_dead_position = true;
-                }
-            }
-            // TODO: Refactor and break to outer.
+
+            let test_in_dead_position = dead_positions.iter().any(|position| *position == test);
+
             if test_in_dead_position {
                 break;
             } else {

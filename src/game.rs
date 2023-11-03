@@ -39,6 +39,7 @@ use std::fmt::{
     Debug,
     Formatter
 };
+use std::io;
 use std::time::Duration;
 use iced::widget::canvas::path::lyon_path::geom::Angle;
 use iced::widget::canvas::path::lyon_path::geom::euclid::Transform2D;
@@ -48,7 +49,13 @@ use rand::distributions::{
 };
 use rand::Rng;
 use rand::seq::SliceRandom;
-use crate::strategies::{Dummy, FireFire, Random, Slacker, Spinner};
+use crate::strategies::{
+    Dummy,
+    FireFire,
+    Random,
+    Slacker,
+    Spinner
+};
 
 
 pub(crate) struct RobotChallenge {
@@ -134,14 +141,14 @@ impl RobotChallenge {
     const MAX_ROUNDS: usize = 100;
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub(crate) enum Message {
-    NewGame(Result<String, SleeperError>),
-    NewRound(Result<String, SleeperError>),
-    Move(Result<String, SleeperError>),
-    Laser(Result<String, SleeperError>),
-    Hit(Result<String, SleeperError>),
-    EndGame(Result<String, SleeperError>)
+    NewGame(Result<String, io::Error>),
+    NewRound(Result<String, io::Error>),
+    Move(Result<String, io::Error>),
+    Laser(Result<String, io::Error>),
+    Hit(Result<String, io::Error>),
+    EndGame(Result<String, io::Error>)
 }
 
 impl Application for RobotChallenge {
@@ -395,15 +402,10 @@ impl Application for RobotChallenge {
 struct Sleeper;
 
 impl Sleeper {
-    async fn sleep(duration: Duration) -> Result<String, SleeperError> {
+    async fn sleep(duration: Duration) -> Result<String, io::Error> {
         std::thread::sleep(duration);
         Ok("Booing".to_string())
     }
-}
-
-#[derive(Debug, Clone)]
-pub(crate) enum SleeperError {
-    String,
 }
 
 impl<Message> canvas::Program<Message, Renderer> for RobotChallenge {
