@@ -27,17 +27,6 @@ impl Default for Dummy {
     }
 }
 
-impl Dummy {
-    pub(crate) fn dummy2() -> Self {
-        Self {
-            name: "Dummy2".to_string(),
-            author: "JMH".to_string(),
-            moves: vec![Move::Fire, Move::TurnRight, Move::Forward],
-            move_index: 0,
-        }
-    }
-}
-
 impl Strategy for Dummy {
     fn name(&self) -> String {
         self.name.clone()
@@ -63,15 +52,6 @@ impl Default for Random {
     fn default() -> Self {
         Self {
             name: "Random".to_string(),
-            author: "Martin".to_string(),
-        }
-    }
-}
-
-impl Random {
-    pub(crate) fn random2() -> Self {
-        Self {
-            name: "Random2".to_string(),
             author: "Martin".to_string(),
         }
     }

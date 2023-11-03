@@ -47,6 +47,7 @@ use rand::distributions::{
     Distribution,
     Standard
 };
+use rand;
 use rand::Rng;
 use rand::seq::SliceRandom;
 use crate::strategies::{
@@ -66,6 +67,20 @@ pub(crate) struct RobotChallenge {
     tanks: Vec<Tank>,
     laser: Laser,
     hit: Hit,
+}
+
+impl Default for RobotChallenge {
+    fn default() -> Self {
+        Self {
+            round: 0,
+            next_tank_indexs: vec![],
+            board_cache: Default::default(),
+            dimension: Default::default(),
+            tanks: vec![],
+            laser: Default::default(),
+            hit: Default::default(),
+        }
+    }
 }
 
 impl RobotChallenge {
@@ -239,61 +254,34 @@ impl Application for RobotChallenge {
     type Flags = ();
 
     fn new(_flags: ()) -> (Self, Command<Message>) {
+        let mut strategies: Vec<Box<dyn Strategy>> = vec![
+            Box::new(Dummy::default()),
+            Box::new(Random::default()),
+            Box::new(Slacker::default()),
+            Box::new(Spinner::default()),
+            Box::new(FireFire::default()),
+            Box::new(Random::default()),
+            Box::new(Random::default())];
+        let dimension = Dimension::default();
+        let mut points = BoardPoint::get_unique_random_vec(strategies.len(), &dimension);
+        let mut colors = GameColors::get_tank_colors();
+
+        let mut tanks = Vec::new();
+        for _ in 0..strategies.len() {
+            let tank = Tank {
+                strategy: strategies.pop().unwrap(),
+                color: colors.pop().unwrap(),
+                point: points.pop().unwrap(),
+                ..Default::default()
+            };
+            tanks.push(tank);
+        }
+
         (
-            // TODO: Generate tanks from strategies, colors and board points.
-
-            // TODO: Random for available board point.
-
             Self {
-                round: 0,
-                next_tank_indexs: vec![],
-                board_cache: Default::default(),
-                dimension: Default::default(),
-                tanks: vec![
-                    Tank {
-                        color: GameColors::RED,
-                        point: BoardPoint { x: 6, y: 10 },
-                        strategy: Box::new(Dummy::default()),
-                        ..Default::default()
-                    },
-                    Tank {
-                        color: GameColors::BLUE,
-                        point: BoardPoint { x: 2, y: 10 },
-                        strategy: Box::new(Dummy::dummy2()),
-                        ..Default::default()
-                    },
-                    Tank {
-                        color: GameColors::GREEN,
-                        point: BoardPoint { x: 12, y: 12 },
-                        strategy: Box::new(Random::default()),
-                        ..Default::default()
-                    },
-                    Tank {
-                        color: GameColors::AQUA,
-                        point: BoardPoint { x: 4, y: 14 },
-                        strategy: Box::new(Random::random2()),
-                        ..Default::default()
-                    },
-                    Tank {
-                        color: GameColors::PERU,
-                        point: BoardPoint { x: 14, y: 5 },
-                        strategy: Box::new(Slacker::default()),
-                        ..Default::default()
-                    },
-                    Tank {
-                        color: GameColors::TOMATO,
-                        point: BoardPoint { x: 10, y: 5 },
-                        strategy: Box::new(Spinner::default()),
-                        ..Default::default()
-                    },
-                    Tank {
-                        color: GameColors::PINK,
-                        point: BoardPoint { x: 19, y: 19 },
-                        strategy: Box::new(FireFire::default()),
-                        ..Default::default()
-                    }],
-                laser: Default::default(),
-                hit: Default::default(),
+                tanks,
+                dimension,
+                ..Default::default()
             },
             Command::perform(Sleeper::sleep(Duration::from_millis(100)), Message::NewGame)
         )
@@ -619,6 +607,10 @@ impl GameColors {
         b: 1.0,
         a: 1.0,
     };
+
+    fn get_tank_colors() -> Vec<Color> {
+        vec![Self::GREEN, Self::RED, Self::BLUE, Self::TOMATO, Self::PERU, Self::AQUA, Self::PINK]
+    }
 }
 
 // Tank Path in the shape of an arrow.
@@ -748,6 +740,24 @@ impl BoardPoint {
             x: self.x + direction.x() * offset,
             y: self.y + direction.y() * offset
         }
+    }
+    
+    fn random(dimension: &Dimension) -> Self {
+        Self {
+            x: rand::thread_rng().gen_range(0..dimension.width as isize),
+            y: rand::thread_rng().gen_range(0..dimension.height as isize),
+        }
+    }
+
+    fn get_unique_random_vec(len: usize, dimension: &Dimension) -> Vec<Self> {
+        let mut points: Vec<Self> = Vec::new();
+        while points.len() < len {
+            let point = Self::random(&dimension);
+            if !points.contains(&point) {
+                points.push(point);
+            }
+        }
+        points
     }
 }
 
