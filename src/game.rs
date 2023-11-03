@@ -261,7 +261,8 @@ impl Application for RobotChallenge {
             Box::new(Spinner::default()),
             Box::new(FireFire::default()),
             Box::new(Random::default()),
-            Box::new(Random::default())];
+            Box::new(Random::default())
+        ];
         let dimension = Dimension::default();
         let mut points = BoardPoint::get_unique_random_vec(strategies.len(), &dimension);
         let mut colors = GameColors::get_tank_colors();
